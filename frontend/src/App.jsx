@@ -61,6 +61,7 @@ export default function App() {
     deleteCourse,
     extraIncomes,
     addExtraIncome,
+    editPayment,
     getStats 
   } = useApp();
 
@@ -248,6 +249,35 @@ export default function App() {
     setCourseForm({ name: '', duration: '6 Months', fee: '', details: '' });
     setEditingCourseObj(null);
     setIsCourseFormModalOpen(false);
+  };
+
+  const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
+  const [editingPaymentData, setEditingPaymentData] = useState(null);
+
+  const openEditPaymentModal = (student, payment) => {
+    if (!student || !payment) return;
+    setEditingPaymentData({
+      studentId: student._id,
+      paymentId: payment._id,
+      studentName: student.name,
+      receiptNumber: payment.receiptNumber || 'REC-001',
+      amount: payment.amount,
+      date: payment.date || new Date().toISOString().split('T')[0],
+      paymentMethod: payment.paymentMethod || 'Cash'
+    });
+    setIsEditPaymentModalOpen(true);
+  };
+
+  const handleEditPaymentSubmit = (e) => {
+    e.preventDefault();
+    if (!editingPaymentData || !editingPaymentData.studentId || !editingPaymentData.paymentId) return;
+    if (parseFloat(editingPaymentData.amount) <= 0) {
+      toast.error("Payment amount must be greater than 0.");
+      return;
+    }
+    editPayment(editingPaymentData.studentId, editingPaymentData.paymentId, editingPaymentData);
+    setIsEditPaymentModalOpen(false);
+    toast.success("Payment details corrected & ledger updated!");
   };
 
   const generateStudentDirectoryPDF = () => {
@@ -492,56 +522,264 @@ export default function App() {
     }
   };
 
-  const generatePDFInvoice = (student, payment) => {
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(22);
-    doc.setTextColor(0, 102, 178); // Logo Blue
-    doc.text("SPRINGS ACADEMY", 105, 20, { align: "center" });
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text("Institute of Commerce and Technology", 105, 26, { align: "center" });
-    
-    // Divider
-    doc.setDrawColor(200);
-    doc.line(14, 32, 196, 32);
+  let cachedLogoDataUrl = null;
+  const getLogoDataUrl = () => {
+    return new Promise((resolve) => {
+      if (cachedLogoDataUrl) {
+        return resolve(cachedLogoDataUrl);
+      }
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/png');
+          cachedLogoDataUrl = dataUrl;
+          resolve(dataUrl);
+        } catch (err) {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = logo;
+    });
+  };
 
-    // Title
-    doc.setFontSize(16);
-    doc.setTextColor(0);
-    doc.text("PAYMENT RECEIPT", 105, 45, { align: "center" });
+  const generatePDFInvoice = async (student, payment) => {
+    if (!student || !payment) return;
 
-    // Details
-    doc.setFontSize(11);
-    doc.text(`Receipt No: ${payment.receiptNumber}`, 14, 60);
-    doc.text(`Date: ${payment.date}`, 140, 60);
-    
-    doc.text(`Student Name: ${student.name}`, 14, 75);
-    doc.text(`Roll Number: ${student.rollNumber}`, 14, 82);
-    doc.text(`Course: ${student.courseName} (${student.batchId})`, 14, 89);
-    
-    // Amount Box
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.rect(14, 105, 182, 35, 'FD');
-    
-    doc.setFontSize(12);
-    doc.text(`Amount Paid: Rs. ${payment.amount.toLocaleString()}`, 20, 117);
-    doc.text(`Payment Method: ${payment.paymentMethod}`, 20, 127);
-    
-    // Summary
-    doc.setFontSize(10);
-    doc.text(`Total Package: Rs. ${student.ledger.totalPackageAmount.toLocaleString()}`, 14, 155);
-    doc.text(`Outstanding Balance: Rs. ${student.ledger.balanceDue.toLocaleString()}`, 14, 162);
-    
-    // Footer
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const logoDataUrl = await getLogoDataUrl();
+
+    // Color palette constants
+    const primaryDark = [15, 23, 42];    // Slate 900
+    const primaryBlue = [2, 132, 199];   // Sky 600
+    const textDark = [30, 41, 59];       // Slate 800
+    const textMuted = [100, 116, 139];   // Slate 500
+    const bgLight = [248, 250, 252];     // Slate 50
+    const borderColor = [226, 232, 240]; // Slate 200
+
+    // Header section: Logo & Title
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'PNG', 15, 12, 43, 20);
+      } catch (e) {
+        console.warn("PDF Image rendering error:", e);
+      }
+    }
+
+    // doc.setFont("helvetica", "bold");
+    // doc.setFontSize(16);
+    // doc.setTextColor(...primaryDark);
+    // doc.text("SPRINGS ACADEMY", 62, 20);
+
+    // doc.setFont("helvetica", "normal");
+    // doc.setFontSize(9);
+    // doc.setTextColor(...textMuted);
+    // doc.text("Institute of Commerce and Technology", 62, 25.5);
+
+    // doc.setFontSize(8);
+    // doc.setTextColor(148, 163, 184);
+    // doc.text("Technical & Commercial Education Hub | Contact: +91 98765 43210", 62, 30.5);
+
+    // Right Side: Receipt Title & Info
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(...primaryBlue);
+    doc.text("PAYMENT RECEIPT", 195, 18, { align: "right" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(...textDark);
+    doc.text(`RECEIPT NO: ${payment.receiptNumber || 'REC-001'}`, 195, 24, { align: "right" });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...textMuted);
+    doc.text(`DATE: ${payment.date || new Date().toISOString().split('T')[0]}`, 195, 29, { align: "right" });
+
+    // PAID Badge
+    doc.setFillColor(220, 252, 231);
+    doc.setDrawColor(187, 247, 208);
+    doc.roundedRect(165, 32, 30, 7, 1.5, 1.5, 'FD');
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(21, 128, 61);
+    doc.text("PAID", 180, 36.8, { align: "center" });
+
+    // Accent Separator Line
+    doc.setDrawColor(...borderColor);
+    doc.setLineWidth(0.5);
+    doc.line(15, 42, 195, 42);
+
+    // Student & Course Cards (Side-by-Side)
+    doc.setFillColor(...bgLight);
+    doc.setDrawColor(...borderColor);
+    doc.roundedRect(15, 47, 87, 31, 2, 2, 'FD');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...textMuted);
+    doc.text("BILLED TO", 19, 53);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(...primaryDark);
+    doc.text(student.name || 'N/A', 19, 59);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...textDark);
+    doc.text(`Roll Number: ${student.rollNumber || 'N/A'}`, 19, 64.5);
+    doc.text(`Phone: ${student.phoneNumber || 'N/A'}`, 19, 69.5);
+    doc.text(`Email: ${student.email || 'N/A'}`, 19, 74.5);
+
+    doc.setFillColor(...bgLight);
+    doc.setDrawColor(...borderColor);
+    doc.roundedRect(108, 47, 87, 31, 2, 2, 'FD');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...textMuted);
+    doc.text("ENROLLMENT & COURSE", 112, 53);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(...primaryDark);
+    doc.text(student.courseName || 'N/A', 112, 59);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...textDark);
+    doc.text(`Batch ID: ${student.batchId || 'N/A'}`, 112, 64.5);
+    doc.text(`Status: ${student.status || 'Active'}`, 112, 69.5);
+
+    // Itemized Table Header
+    doc.setFillColor(...primaryDark);
+    doc.rect(15, 84, 180, 8, 'F');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text("ITEM DESCRIPTION", 20, 89.2);
+    doc.text("PAYMENT METHOD", 108, 89.2);
+    doc.text("DATE", 145, 89.2);
+    doc.text("AMOUNT PAID", 190, 89.2, { align: "right" });
+
+    // Table Data Row
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(...borderColor);
+    doc.rect(15, 92, 180, 13, 'D');
+
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    doc.setTextColor(150);
-    doc.text("Thank you for your payment. This is a computer-generated receipt and requires no signature.", 105, 270, { align: "center" });
-    
-    doc.save(`${student.name.replace(/\s+/g, '_')}_Receipt_${payment.receiptNumber}.pdf`);
+    doc.setTextColor(...primaryDark);
+    doc.text("Tuition Fee Installment Payment", 20, 98);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...textMuted);
+    doc.text(`Receipt Reference: ${payment.receiptNumber || 'N/A'}`, 20, 102);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...textDark);
+    doc.text(payment.paymentMethod || 'Cash', 108, 99);
+    doc.text(payment.date || 'N/A', 145, 99);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...primaryDark);
+    doc.text(`${(payment.amount || 0).toLocaleString()}`, 190, 99, { align: "right" });
+
+    // Financial Summary Panel
+    const totalPkg = student.ledger?.totalPackageAmount || 0;
+    const paidAmt = student.ledger?.amountPaid || 0;
+    const balanceDue = student.ledger?.balanceDue || 0;
+
+    doc.setFillColor(...bgLight);
+    doc.setDrawColor(...borderColor);
+    doc.roundedRect(108, 111, 87, 34, 2, 2, 'FD');
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...textMuted);
+    doc.text("Total Course Package:", 112, 117);
+    doc.setTextColor(...textDark);
+    doc.text(`${totalPkg.toLocaleString()}`, 190, 117, { align: "right" });
+
+    doc.setTextColor(...textMuted);
+    doc.text("Total Paid to Date:", 112, 122.5);
+    doc.setTextColor(22, 163, 74);
+    doc.text(`${paidAmt.toLocaleString()}`, 190, 122.5, { align: "right" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...textDark);
+    doc.text("Amount Paid (This Receipt):", 112, 128);
+    doc.setTextColor(...primaryBlue);
+    doc.text(`${(payment.amount || 0).toLocaleString()}`, 190, 128, { align: "right" });
+
+    doc.setDrawColor(...borderColor);
+    doc.setLineWidth(0.3);
+    doc.line(112, 132, 191, 132);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...textDark);
+    doc.text("Balance Remaining:", 112, 138);
+
+    if (balanceDue > 0) {
+      doc.setTextColor(220, 38, 38);
+    } else {
+      doc.setTextColor(22, 163, 74);
+    }
+    doc.text(`${balanceDue.toLocaleString()}`, 190, 138, { align: "right" });
+
+    // Terms & Conditions + Authorized Signatory
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...textMuted);
+    doc.text("TERMS & CONDITIONS", 15, 155);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text("1. Fees once paid are non-refundable and non-transferable under any circumstances.", 15, 160);
+    doc.text("2. Please preserve this computer-generated receipt for institutional audit and hall ticket issuance.", 15, 164.5);
+    doc.text("3. For financial queries or assistance, contact Accounts Wing at info@springsacademy.com", 15, 169);
+
+    // Signatory Area
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.4);
+    doc.line(140, 172, 195, 172);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...textDark);
+    doc.text("Authorized Signatory", 167.5, 177, { align: "center" });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...textMuted);
+    doc.text("Springs Academy Finance Wing", 167.5, 181, { align: "center" });
+
+    // Page Footer
+    doc.setDrawColor(...borderColor);
+    doc.setLineWidth(0.3);
+    doc.line(15, 275, 195, 275);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text("Springs Academy • Technical & Commercial Education • www.springsacademy.com", 105, 281, { align: "center" });
+
+    // Save File
+    doc.save(`${(student.name || 'Student').replace(/\s+/g, '_')}_Receipt_${payment.receiptNumber || '001'}.pdf`);
+    toast.success("Payment receipt PDF downloaded!");
   };
 
   const allPayments = students.reduce((acc, student) => {
@@ -1550,7 +1788,7 @@ export default function App() {
                           )}
                           <div>
                             <h3 className="text-white font-bold text-sm leading-tight">{student.name}</h3>
-                            <span className="text-slate-500 font-mono text-[10px]">{student.rollNumber}</span>
+                            <span className="text-slate-500 font-mono text-[10px]">{student.rollNumber} • {student.courseName}</span>
                           </div>
                         </div>
                         <span className={`text-[9px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider ${
@@ -1560,12 +1798,51 @@ export default function App() {
                         </span>
                       </div>
 
-                      <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-4">
-                        <p className="text-[10px] text-slate-400 uppercase font-semibold mb-1">Current Balance Due</p>
+                      <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-3">
+                        <div className="flex justify-between items-center mb-1">
+                          <p className="text-[10px] text-slate-400 uppercase font-semibold">Current Balance Due</p>
+                          <p className="text-[10px] text-slate-500 font-medium">Pkg: {student.ledger.totalPackageAmount.toLocaleString()}</p>
+                        </div>
                         <p className={`text-xl font-extrabold ${student.ledger.balanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                           {student.ledger.balanceDue.toLocaleString()}
                         </p>
                       </div>
+
+                      {/* Logged Payments History with Edit Option */}
+                      {student.payments && student.payments.length > 0 && (
+                        <div className="mb-4 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            <span>Recorded Payments ({student.payments.length})</span>
+                            <span className="text-[9px] text-amber-400 font-medium">Edit wrong amount</span>
+                          </div>
+                          <div className="max-h-[110px] overflow-y-auto space-y-1.5 pr-1">
+                            {student.payments.map((pay) => (
+                              <div key={pay._id} className="flex items-center justify-between bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 text-xs">
+                                <div>
+                                  <span className="font-semibold text-emerald-400">+{pay.amount.toLocaleString()}</span>
+                                  <span className="text-[10px] text-slate-500 ml-2">{pay.date} ({pay.paymentMethod})</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => openEditPaymentModal(student, pay)}
+                                    className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                    title="Edit payment amount"
+                                  >
+                                    <Edit className="w-2.5 h-2.5" /> Edit
+                                  </button>
+                                  <button
+                                    onClick={() => generatePDFInvoice(student, pay)}
+                                    className="bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
+                                    title="Download receipt"
+                                  >
+                                    Receipt
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <button
@@ -1576,7 +1853,7 @@ export default function App() {
                         setIsStudentProfileModalOpen(true);
                       }}
                       disabled={student.ledger.balanceDue === 0}
-                      className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                      className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
                         student.ledger.balanceDue > 0 
                           ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-lg shadow-emerald-900/20' 
                           : 'bg-slate-800 text-slate-500 cursor-not-allowed'
@@ -2344,15 +2621,26 @@ export default function App() {
                           <p className="font-semibold text-emerald-400">{pay.amount.toLocaleString()}</p>
                           <p className="text-[10px] text-slate-500">{pay.date}  |  {pay.paymentMethod}</p>
                         </div>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            generatePDFInvoice(viewingStudent, pay);
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                        >
-                          Invoice
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditPaymentModal(viewingStudent, pay);
+                            }}
+                            className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <Edit className="w-3 h-3" /> Edit
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              generatePDFInvoice(viewingStudent, pay);
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            Invoice
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2641,6 +2929,78 @@ export default function App() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Edit Payment Modal */}
+      <Modal 
+        isOpen={isEditPaymentModalOpen} 
+        onClose={() => setIsEditPaymentModalOpen(false)} 
+        title="Correct Payment Record / Edit Amount"
+      >
+        {editingPaymentData && (
+          <form onSubmit={handleEditPaymentSubmit} className="space-y-4 text-sm">
+            <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
+              <p className="text-xs text-amber-400 font-semibold uppercase mb-1">Correct Payment Record</p>
+              <p className="text-sm font-bold text-white">{editingPaymentData.studentName}</p>
+              <p className="text-xs text-slate-400">Receipt Reference: <span className="font-mono text-slate-200">{editingPaymentData.receiptNumber}</span></p>
+            </div>
+
+            <div>
+              <label className="block text-slate-400 font-medium mb-1">Correct Payment Amount *</label>
+              <input 
+                type="number" 
+                required 
+                min="1" 
+                value={editingPaymentData.amount} 
+                onChange={(e) => setEditingPaymentData({ ...editingPaymentData, amount: e.target.value })} 
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-amber-500 text-lg font-semibold" 
+              />
+              <p className="text-[10px] text-slate-500 mt-1">Updating this amount will automatically recalculate the student's ledger and outstanding balance due.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-400 font-medium mb-1">Payment Date *</label>
+                <input 
+                  type="date" 
+                  required 
+                  value={editingPaymentData.date} 
+                  onChange={(e) => setEditingPaymentData({ ...editingPaymentData, date: e.target.value })} 
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-amber-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-medium mb-1">Payment Method *</label>
+                <select 
+                  value={editingPaymentData.paymentMethod} 
+                  onChange={(e) => setEditingPaymentData({ ...editingPaymentData, paymentMethod: e.target.value })} 
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-amber-500"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="UPI">UPI / Net Banking</option>
+                  <option value="Card">Credit / Debit Card</option>
+                  <option value="Cheque">Cheque</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 flex gap-3">
+              <button 
+                type="button" 
+                onClick={() => setIsEditPaymentModalOpen(false)} 
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white rounded-xl py-3 font-semibold transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-3 font-semibold transition-all cursor-pointer"
+              >
+                Save Payment Correction
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* 3. Employee Registration Modal */}

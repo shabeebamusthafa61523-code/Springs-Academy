@@ -319,6 +319,40 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
+  const editPayment = (studentId, paymentId, updatedData) => {
+    setStudents(prev => prev.map(s => {
+      if (s._id === studentId) {
+        const updatedPayments = (s.payments || []).map(p => {
+          if (p._id === paymentId) {
+            return {
+              ...p,
+              amount: parseFloat(updatedData.amount) || p.amount,
+              date: updatedData.date || p.date,
+              paymentMethod: updatedData.paymentMethod || p.paymentMethod
+            };
+          }
+          return p;
+        });
+
+        const newAmountPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
+        const newBalanceDue = Math.max(0, s.ledger.totalPackageAmount - newAmountPaid);
+        const newPaymentStatus = newBalanceDue === 0 ? 'Fully Paid' : (newAmountPaid > 0 ? 'Partially Paid' : 'Pending');
+
+        return {
+          ...s,
+          payments: updatedPayments,
+          ledger: {
+            ...s.ledger,
+            amountPaid: newAmountPaid,
+            balanceDue: newBalanceDue,
+            paymentStatus: newPaymentStatus
+          }
+        };
+      }
+      return s;
+    }));
+  };
+
   const markInvoicePaid = (studentId, invoiceId, paymentMethod) => {
     setStudents(prev => prev.map(s => {
       if (s._id === studentId) {
@@ -571,6 +605,7 @@ export const AppProvider = ({ children }) => {
       deleteStudent,
       addInstallment,
       makePayment,
+      editPayment,
       markInvoicePaid,
       overrideStudentLedger,
       employees,
