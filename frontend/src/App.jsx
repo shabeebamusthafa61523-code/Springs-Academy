@@ -140,6 +140,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [dashboardMonth, setDashboardMonth] = useState('All');
   const [paymentSortOrder, setPaymentSortOrder] = useState('desc');
+  const [paymentStartDate, setPaymentStartDate] = useState('');
+  const [paymentEndDate, setPaymentEndDate] = useState('');
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [feeCollectionSort, setFeeCollectionSort] = useState('date-desc');
   const [feeCollectionSearch, setFeeCollectionSearch] = useState('');
@@ -1785,8 +1787,14 @@ export default function App() {
             );
           })()}
 
-               {activeTab === 'invoices' && (() => {
-            const sortedPaymentsReport = [...allPayments].sort((a, b) => {
+          {activeTab === 'invoices' && (() => {
+            const filteredPaymentsReport = allPayments.filter(pay => {
+              if (paymentStartDate && pay.date < paymentStartDate) return false;
+              if (paymentEndDate && pay.date > paymentEndDate) return false;
+              return true;
+            });
+
+            const sortedPaymentsReport = [...filteredPaymentsReport].sort((a, b) => {
               const dateA = new Date(a.date);
               const dateB = new Date(b.date);
               return paymentSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
@@ -1804,17 +1812,52 @@ export default function App() {
 
                 {/* Filters and Actions Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/40 p-4 rounded-xl border border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-semibold text-slate-400">Sort by Date:</span>
-                    <select 
-                      value={paymentSortOrder}
-                      onChange={(e) => setPaymentSortOrder(e.target.value)}
-                      className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none cursor-pointer"
-                    >
-                      <option value="desc">Newest First</option>
-                      <option value="asc">Oldest First</option>
-                    </select>
+                  <div className="flex flex-wrap items-center gap-4">
+                    {/* Date Range Picker Filter */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-400">Date Range:</span>
+                      <input
+                        type="date"
+                        value={paymentStartDate}
+                        onChange={(e) => setPaymentStartDate(e.target.value)}
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                        title="From Date"
+                      />
+                      <span className="text-xs text-slate-500 font-bold">to</span>
+                      <input
+                        type="date"
+                        value={paymentEndDate}
+                        onChange={(e) => setPaymentEndDate(e.target.value)}
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                        title="To Date"
+                      />
+                      {(paymentStartDate || paymentEndDate) && (
+                        <button
+                          onClick={() => {
+                            setPaymentStartDate('');
+                            setPaymentEndDate('');
+                          }}
+                          className="text-[10px] text-slate-400 hover:text-white bg-slate-800 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Clear Range
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Sort Dropdown */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-400">Sort:</span>
+                      <select 
+                        value={paymentSortOrder}
+                        onChange={(e) => setPaymentSortOrder(e.target.value)}
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none cursor-pointer"
+                      >
+                        <option value="desc">Date: Newest First</option>
+                        <option value="asc">Date: Oldest First</option>
+                      </select>
+                    </div>
                   </div>
+
                   <button
                     onClick={generatePaymentActivityPDF}
                     className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl border border-blue-500/20 shadow-md transition-all cursor-pointer flex items-center gap-1.5"

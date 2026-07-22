@@ -156,7 +156,7 @@ export const AppProvider = ({ children }) => {
     return false;
   };
 
-  const register = (username, password, role = 'Super Admin') => {
+  const register = async (username, password, role = 'Super Admin') => {
     const cleanUsername = (username || '').trim();
     if (users.find(u => u.username && u.username.toLowerCase() === cleanUsername.toLowerCase())) {
       return false; // Username exists
@@ -172,6 +172,26 @@ export const AppProvider = ({ children }) => {
       designation: role === 'Super Admin' ? 'Academy Director' : 'Accounts Manager',
       salary: role === 'Super Admin' ? 120000 : 60000
     };
+
+    // Live MongoDB Atlas Sync via Render API
+    try {
+      await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cleanUsername,
+          email: `${cleanUsername.toLowerCase()}@academy.com`,
+          password,
+          role: role || 'Super Admin',
+          department: newUser.department,
+          designation: newUser.designation,
+          salary: newUser.salary
+        })
+      });
+    } catch (err) {
+      console.warn("MongoDB Cloud Sync Warning:", err);
+    }
+
     setUsers(prev => [...prev, newUser]);
     return newUser;
   };

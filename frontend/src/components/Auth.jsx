@@ -11,7 +11,7 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -26,7 +26,7 @@ export default function Auth() {
         setError('Invalid username or password.');
       }
     } else {
-      const registeredUser = register(formData.username, formData.password, formData.role || 'Super Admin');
+      const registeredUser = await register(formData.username, formData.password, formData.role || 'Super Admin');
       if (!registeredUser) {
         setError('Username already exists. Please choose another.');
       } else {
