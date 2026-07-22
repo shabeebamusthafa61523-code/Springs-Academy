@@ -1,7 +1,7 @@
 {
   "name": "academy-office-manager",
   "version": "1.0.0",
-  "description": "Unified Academy Office & Student Financial Management System console",
+  "description": "Springs Academy Management System ",
   "scripts": {
     "install-all": "npm install --prefix backend && npm install --prefix frontend",
     "dev": "concurrently \"npm run backend\" \"npm run frontend\"",

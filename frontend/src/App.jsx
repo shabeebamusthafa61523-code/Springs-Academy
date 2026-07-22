@@ -32,6 +32,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Edit,
   Trash2
 } from 'lucide-react';
@@ -129,6 +130,9 @@ export default function App() {
   // Specific modal contexts
   const [paymentModalData, setPaymentModalData] = useState(null); // { studentId, invoiceId, invoiceNumber, amount }
   const [viewingStudent, setViewingStudent] = useState(null);
+  const [activeStudentDetailMode, setActiveStudentDetailMode] = useState('view'); // 'view', 'edit', 'register'
+  const [expandedStudentId, setExpandedStudentId] = useState(null);
+  const [isRegisteringStudent, setIsRegisteringStudent] = useState(false);
   const [profileModalMode, setProfileModalMode] = useState('view'); // 'view', 'edit', 'addInstallment'
   const [editingStudentForm, setEditingStudentForm] = useState(null);
   const [newInstallmentForm, setNewInstallmentForm] = useState({ amount: '', description: '', dueDate: '', method: 'Cash', upiScreenshot: null });
@@ -137,6 +141,9 @@ export default function App() {
   const [dashboardMonth, setDashboardMonth] = useState('All');
   const [paymentSortOrder, setPaymentSortOrder] = useState('desc');
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [feeCollectionSort, setFeeCollectionSort] = useState('date-desc');
+  const [feeCollectionSearch, setFeeCollectionSearch] = useState('');
+  const [feeCollectionDate, setFeeCollectionDate] = useState('');
 
   // Rich Course Hub States
   const [isCourseFormModalOpen, setIsCourseFormModalOpen] = useState(false);
@@ -923,21 +930,23 @@ export default function App() {
                 {!isSidebarCollapsed && <span>Fee Collection</span>}
               </button>
 
-              <button
-                onClick={(e) => {
-                  if (!isSidebarCollapsed) e.stopPropagation();
-                  setActiveTab('office');
-                }}
-                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                  activeTab === 'office'
-                    ? 'bg-blue-600/10 text-blue-300 border border-blue-500/20'
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-                title="Office & HR Manager"
-              >
-                <Building className="w-5 h-5 flex-shrink-0" />
-                {!isSidebarCollapsed && <span>Office & HR Manager</span>}
-              </button>
+              {currentUser.role === 'Super Admin' && (
+                <button
+                  onClick={(e) => {
+                    if (!isSidebarCollapsed) e.stopPropagation();
+                    setActiveTab('office');
+                  }}
+                  className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                    activeTab === 'office'
+                      ? 'bg-blue-600/10 text-blue-300 border border-blue-500/20'
+                      : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                  }`}
+                  title="Office & HR Manager"
+                >
+                  <Building className="w-5 h-5 flex-shrink-0" />
+                  {!isSidebarCollapsed && <span>Office & HR Manager</span>}
+                </button>
+              )}
 
               <button
                 onClick={(e) => {
@@ -1444,7 +1453,7 @@ export default function App() {
 
 
 
-          {/* TAB 2: STUDENT ADMISSIONS */}
+          {/* TAB 2: STUDENT ADMISSIONS - TABLE WITH EXPANDABLE DROPDOWN ROW DETAILS */}
           {activeTab === 'students' && (() => {
             const filteredStudents = students.filter(student => {
               const query = studentSearchQuery.toLowerCase();
@@ -1460,16 +1469,16 @@ export default function App() {
             return (
               <div className="space-y-6">
                 
-                {/* Admissions header */}
-                <div className="flex justify-between items-center">
+                {/* Admissions Header */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                     <h2 className="text-xl font-extrabold text-white">Student Admissions Registry</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Enroll new learners and define custom package installment agreements.</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Click any student row to expand inline profile & financial ledger details.</p>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={generateStudentDirectoryPDF}
-                      className="bg-slate-900 border border-slate-800 hover:border-slate-705 text-slate-300 hover:text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 shadow-md"
+                      className="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-1.5 shadow-md"
                     >
                       <Download className="w-4 h-4" />
                       Download Roster PDF
@@ -1484,8 +1493,8 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Search Bar */}
-                <div className="flex justify-start">
+                {/* Search Bar & Count */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <input
                     type="text"
                     placeholder="Search by student name, roll no, course, batch, phone..."
@@ -1493,9 +1502,10 @@ export default function App() {
                     onChange={(e) => setStudentSearchQuery(e.target.value)}
                     className="w-full sm:max-w-md bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 placeholder-slate-500 text-xs shadow-inner"
                   />
+                  <span className="text-xs text-slate-500 font-medium">Showing {filteredStudents.length} of {students.length} students</span>
                 </div>
 
-                {/* Students List */}
+                {/* Enrolled Students Table Database */}
                 <div className="glass-panel p-6 rounded-2xl border border-slate-800 overflow-hidden">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1504,94 +1514,259 @@ export default function App() {
                     </h3>
                     <span className="text-[10px] text-slate-500 font-medium">Showing {filteredStudents.length} of {students.length}</span>
                   </div>
+
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
+                    <table className="w-full text-left text-xs text-slate-300 border-collapse">
                       <thead>
                         <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                          <th className="py-3 px-2">Roll Number</th>
-                          <th className="py-3 px-2">Name</th>
-                          <th className="py-3 px-2">Phone</th>
-                          <th className="py-3 px-2">Course</th>
-                          <th className="py-3 px-2">Batch</th>
-                          <th className="py-3 px-2">Status</th>
-                          <th className="py-3 px-2 text-right">Actions</th>
+                          <th className="py-3 px-3">Roll Number</th>
+                          <th className="py-3 px-3">Name</th>
+                          <th className="py-3 px-3">Phone</th>
+                          <th className="py-3 px-3">Course</th>
+                          <th className="py-3 px-3">Batch</th>
+                          <th className="py-3 px-3">Status</th>
+                          <th className="py-3 px-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredStudents.map((student) => (
-                          <tr 
-                            key={student._id} 
-                            className="border-b border-slate-900 hover:bg-slate-900/40 cursor-pointer"
-                            onClick={() => {
-                              setViewingStudent(student);
-                              setProfileModalMode('view');
-                              setIsStudentProfileModalOpen(true);
-                            }}
-                          >
-                            <td className="py-3 px-2 font-mono font-medium text-slate-400">{student.rollNumber}</td>
-                            <td className="py-3 px-2">
-                              <div className="flex items-center gap-3">
-                                {student.profileImage ? (
-                                  <img src={student.profileImage} alt={student.name} className="w-8 h-8 rounded-full object-cover border border-slate-700" />
-                                ) : (
-                                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">
-                                    {student.name.charAt(0).toUpperCase()}
-                                  </div>
-                                )}
-                                <div>
-                                  <div className="font-bold text-white leading-tight">{student.name}</div>
-                                  <div className="text-[10px] text-slate-500">{student.email}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3 px-2 text-slate-300">{student.phoneNumber || 'N/A'}</td>
-                            <td className="py-3 px-2 text-slate-300">{student.courseName}</td>
-                            <td className="py-3 px-2 font-mono text-slate-400">{student.batchId}</td>
-                            <td className="py-3 px-2">
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-semibold ${
-                                student.status === 'Active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-slate-400'
-                              }`}>
-                                {student.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-2 text-right" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex justify-end gap-2">
-                                <button 
-                                  onClick={() => {
-                                    setSelectedStudent(student);
-                                    setActiveTab('invoices');
-                                  }}
-                                  className="bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white border border-blue-500/20 rounded px-2.5 py-1 transition-all text-[10px] cursor-pointer"
-                                >
-                                  Ledgers
-                                </button>
-                                <button 
-                                  onClick={() => {
-                                    setViewingStudent(student);
-                                    setEditingStudentForm({ ...student });
-                                    setProfileModalMode('edit');
-                                    setIsStudentProfileModalOpen(true);
-                                  }}
-                                  className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white border border-amber-500/20 rounded px-2.5 py-1 transition-all text-[10px] cursor-pointer"
-                                >
-                                  Edit
-                                </button>
-                                <button 
-                                  onClick={() => {
-                                    if (window.confirm(`Are you sure you want to completely delete ${student.name}?`)) {
-                                      deleteStudent(student._id);
-                                      toast.success("Student deleted successfully.");
-                                    }
-                                  }}
-                                  className="bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 rounded px-2.5 py-1 transition-all text-[10px] cursor-pointer"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
+                        {filteredStudents.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-12 text-center text-slate-500 text-xs">No students found matching search.</td>
                           </tr>
+                        ) : (
+                          filteredStudents.map((student) => {
+                            const isExpanded = expandedStudentId === student._id;
+                            return (
+                              <React.Fragment key={student._id}>
+                                {/* Table Main Row */}
+                                <tr 
+                                  onClick={() => setExpandedStudentId(isExpanded ? null : student._id)}
+                                  className={`border-b border-slate-900 transition-colors cursor-pointer ${
+                                    isExpanded ? 'bg-slate-900/80 border-l-4 border-l-blue-500' : 'hover:bg-slate-900/40'
+                                  }`}
+                                >
+                                  <td className="py-3 px-3 font-mono font-medium text-slate-400">{student.rollNumber}</td>
+                                  <td className="py-3 px-3">
+                                    <div className="flex items-center gap-3">
+                                      {student.profileImage ? (
+                                        <img src={student.profileImage} alt={student.name} className="w-8 h-8 rounded-full object-cover border border-slate-700" />
+                                      ) : (
+                                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">
+                                          {student.name.charAt(0).toUpperCase()}
+                                        </div>
+                                      )}
+                                      <div>
+                                        <div className="font-bold text-white leading-tight">{student.name}</div>
+                                        <div className="text-[10px] text-slate-500">{student.email}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-3 text-slate-300">{student.phoneNumber || 'N/A'}</td>
+                                  <td className="py-3 px-3 text-slate-300">{student.courseName}</td>
+                                  <td className="py-3 px-3 font-mono text-slate-400">{student.batchId}</td>
+                                  <td className="py-3 px-3">
+                                    <span className={`px-2 py-0.5 rounded text-[9px] font-semibold ${
+                                      student.status === 'Active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-slate-400'
+                                    }`}>
+                                      {student.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex justify-end items-center gap-2">
 
-                        ))}
+                                      <button 
+                                        onClick={() => {
+                                          setViewingStudent(student);
+                                          setEditingStudentForm({ ...student });
+                                          setProfileModalMode('edit');
+                                          setIsStudentProfileModalOpen(true);
+                                        }}
+                                        className="bg-amber-600/10 hover:bg-amber-600 text-amber-500 hover:text-white border border-amber-500/20 rounded px-2.5 py-1 transition-all text-[10px] cursor-pointer"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          if (window.confirm(`Are you sure you want to completely delete ${student.name}?`)) {
+                                            deleteStudent(student._id);
+                                            toast.success("Student deleted successfully.");
+                                          }
+                                        }}
+                                        className="bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 rounded px-2.5 py-1 transition-all text-[10px] cursor-pointer"
+                                      >
+                                        Delete
+                                      </button>
+                                      <button
+                                        onClick={() => setExpandedStudentId(isExpanded ? null : student._id)}
+                                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-transform duration-200 bg-slate-900 border border-slate-800 text-slate-400 ${
+                                          isExpanded ? 'rotate-180 text-blue-400 border-blue-500/40 bg-blue-600/10' : 'hover:text-white'
+                                        }`}
+                                        title={isExpanded ? "Collapse Details Dropdown" : "Expand Details Dropdown"}
+                                      >
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+
+                                {/* Expanded Dropdown Details Row */}
+                                {isExpanded && (
+                                  <tr className="bg-slate-950/90 border-b border-slate-800">
+                                    <td colSpan={7} className="p-6">
+                                      <div className="space-y-6 text-xs">
+                                        
+                                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-white text-sm">Full Profile & Financial Ledger ({student.name})</span>
+                                            <span className="text-[10px] text-slate-500 font-mono">Roll: {student.rollNumber}</span>
+                                          </div>
+                                          <button
+                                            onClick={() => setExpandedStudentId(null)}
+                                            className="text-slate-400 hover:text-white text-[10px] bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg cursor-pointer"
+                                          >
+                                            Close Details
+                                          </button>
+                                        </div>
+
+                                        {/* Personal & Parent Info Grid */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800/80">
+                                          <div>
+                                            <span className="block text-[10px] text-slate-500 uppercase font-semibold">Email Address</span>
+                                            <span className="text-slate-200 font-medium break-all">{student.email}</span>
+                                          </div>
+                                          <div>
+                                            <span className="block text-[10px] text-slate-500 uppercase font-semibold">Date of Birth</span>
+                                            <span className="text-slate-200 font-medium">{student.dob || 'N/A'}</span>
+                                          </div>
+                                          <div>
+                                            <span className="block text-[10px] text-slate-500 uppercase font-semibold">Qualification</span>
+                                            <span className="text-slate-200 font-medium">{student.qualification || 'N/A'}</span>
+                                          </div>
+                                          <div>
+                                            <span className="block text-[10px] text-slate-500 uppercase font-semibold">Parent's Phone</span>
+                                            <span className="text-slate-200 font-medium">{student.parentsPhone || 'N/A'}</span>
+                                          </div>
+                                          <div>
+                                            <span className="block text-[10px] text-slate-500 uppercase font-semibold">Father's Name</span>
+                                            <span className="text-slate-200 font-medium">{student.fatherName || 'N/A'}</span>
+                                          </div>
+                                          <div>
+                                            <span className="block text-[10px] text-slate-500 uppercase font-semibold">Mother's Name</span>
+                                            <span className="text-slate-200 font-medium">{student.motherName || 'N/A'}</span>
+                                          </div>
+                                          <div className="col-span-2">
+                                            <span className="block text-[10px] text-slate-500 uppercase font-semibold">Address</span>
+                                            <span className="text-slate-200 font-medium">{student.address || 'N/A'}</span>
+                                          </div>
+                                        </div>
+
+                                        {/* Document Lightbox Previews */}
+                                        <div>
+                                          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Enrolled Student Documents</h4>
+                                          <div className="grid grid-cols-3 gap-3">
+                                            <div className="space-y-1 text-center">
+                                              <span className="block text-[10px] text-slate-500 font-semibold">Profile Photo</span>
+                                              {student.profileImage ? (
+                                                <div 
+                                                  onClick={() => handleOpenLightbox(student.profileImage, `${student.name.replace(/\s+/g, '_')}_profile.jpg`)}
+                                                  className="border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-blue-500/50 bg-slate-900 p-1 flex justify-center items-center h-20"
+                                                  title="Click to view full size"
+                                                >
+                                                  <img src={student.profileImage} alt="Profile" className="h-full object-cover rounded-lg" />
+                                                </div>
+                                              ) : (
+                                                <div className="border border-slate-800 border-dashed rounded-xl h-20 flex items-center justify-center text-[10px] text-slate-650 bg-slate-900/20">Not Uploaded</div>
+                                              )}
+                                            </div>
+
+                                            <div className="space-y-1 text-center">
+                                              <span className="block text-[10px] text-slate-500 font-semibold">ID Card</span>
+                                              {student.idPhoto ? (
+                                                <div 
+                                                  onClick={() => handleOpenLightbox(student.idPhoto, `${student.name.replace(/\s+/g, '_')}_id_card.jpg`)}
+                                                  className="border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-blue-500/50 bg-slate-900 p-1 flex justify-center items-center h-20"
+                                                  title="Click to view full size"
+                                                >
+                                                  <img src={student.idPhoto} alt="ID Photo" className="h-full object-cover rounded-lg" />
+                                                </div>
+                                              ) : (
+                                                <div className="border border-slate-800 border-dashed rounded-xl h-20 flex items-center justify-center text-[10px] text-slate-650 bg-slate-900/20">Not Uploaded</div>
+                                              )}
+                                            </div>
+
+                                            <div className="space-y-1 text-center">
+                                              <span className="block text-[10px] text-slate-500 font-semibold">SSLC Certificate</span>
+                                              {student.sslcPhoto ? (
+                                                <div 
+                                                  onClick={() => handleOpenLightbox(student.sslcPhoto, `${student.name.replace(/\s+/g, '_')}_sslc.jpg`)}
+                                                  className="border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-blue-500/50 bg-slate-900 p-1 flex justify-center items-center h-20"
+                                                  title="Click to view full size"
+                                                >
+                                                  <img src={student.sslcPhoto} alt="SSLC Photo" className="h-full object-cover rounded-lg" />
+                                                </div>
+                                              ) : (
+                                                <div className="border border-slate-800 border-dashed rounded-xl h-20 flex items-center justify-center text-[10px] text-slate-650 bg-slate-900/20">Not Uploaded</div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Financial Ledger & Receipts */}
+                                        <div className="space-y-3 pt-2 border-t border-slate-800/80">
+                                          <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
+                                            <div>
+                                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Financial Summary</p>
+                                              <p className="text-xs text-slate-400 mt-0.5">Total Package: <span className="text-white font-bold">{student.ledger?.totalPackageAmount.toLocaleString()}</span> | Paid: <span className="text-emerald-400 font-bold">{student.ledger?.amountPaid.toLocaleString()}</span></p>
+                                            </div>
+                                            <div className="text-right">
+                                              <p className="text-[10px] text-slate-400 font-bold uppercase">Balance Due</p>
+                                              <p className={`text-xl font-extrabold ${student.ledger?.balanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                {student.ledger?.balanceDue.toLocaleString()}
+                                              </p>
+                                            </div>
+                                          </div>
+
+                                          {student.payments && student.payments.length > 0 && (
+                                            <div>
+                                              <p className="text-[10px] text-slate-400 font-bold uppercase mb-2">Recorded Payment Receipts ({student.payments.length})</p>
+                                              <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                                {student.payments.map((pay) => (
+                                                  <div key={pay._id} className="flex items-center justify-between bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 text-xs">
+                                                    <div>
+                                                      <p className="font-bold text-emerald-400">+{pay.amount.toLocaleString()}</p>
+                                                      <p className="text-[10px] text-slate-500">{pay.date} • {pay.paymentMethod} • Ref: {pay.receiptNumber}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                      {currentUser.role === 'Super Admin' && (
+                                                        <button 
+                                                          onClick={() => openEditPaymentModal(student, pay)}
+                                                          className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                                        >
+                                                          <Edit className="w-3 h-3" /> Edit
+                                                        </button>
+                                                      )}
+                                                      <button 
+                                                        onClick={() => generatePDFInvoice(student, pay)}
+                                                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer"
+                                                      >
+                                                        Receipt PDF
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1762,113 +1937,204 @@ export default function App() {
 
 
           {/* TAB: FEE COLLECTION */}
-          {activeTab === 'fee-collection' && (
-            <div className="space-y-6">
-              
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-xl font-extrabold text-white">Fee Collection Terminal</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Quickly select a student to log a new payment.</p>
-                </div>
-              </div>
+          {activeTab === 'fee-collection' && (() => {
+            const getLatestDate = (student) => {
+              const dates = (student.payments || []).map(p => p.date).filter(Boolean);
+              if (dates.length > 0) return dates.sort().reverse()[0];
+              return (student.invoices && student.invoices[0]) ? (student.invoices[0].dueDate || '') : '';
+            };
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {students.map(student => (
-                  <div key={student._id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/30 transition-all flex flex-col justify-between h-full">
-                    
-                    <div>
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
-                          {student.profileImage ? (
-                            <img src={student.profileImage} alt={student.name} className="w-10 h-10 rounded-full object-cover border border-slate-700" />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">
-                              {student.name.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <div>
-                            <h3 className="text-white font-bold text-sm leading-tight">{student.name}</h3>
-                            <span className="text-slate-500 font-mono text-[10px]">{student.rollNumber} • {student.courseName}</span>
-                          </div>
-                        </div>
-                        <span className={`text-[9px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider ${
-                          student.ledger.paymentStatus === 'Fully Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                        }`}>
-                          {student.ledger.paymentStatus}
-                        </span>
-                      </div>
+            const filteredFeeStudents = students.filter(student => {
+              const query = feeCollectionSearch.toLowerCase();
+              const matchesSearch = !query ||
+                (student.name && student.name.toLowerCase().includes(query)) ||
+                (student.rollNumber && student.rollNumber.toLowerCase().includes(query)) ||
+                (student.courseName && student.courseName.toLowerCase().includes(query));
 
-                      <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-3">
-                        <div className="flex justify-between items-center mb-1">
-                          <p className="text-[10px] text-slate-400 uppercase font-semibold">Current Balance Due</p>
-                          <p className="text-[10px] text-slate-500 font-medium">Pkg: {student.ledger.totalPackageAmount.toLocaleString()}</p>
-                        </div>
-                        <p className={`text-xl font-extrabold ${student.ledger.balanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                          {student.ledger.balanceDue.toLocaleString()}
-                        </p>
-                      </div>
+              if (!matchesSearch) return false;
 
-                      {/* Logged Payments History with Edit Option */}
-                      {student.payments && student.payments.length > 0 && (
-                        <div className="mb-4 space-y-1.5">
-                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            <span>Recorded Payments ({student.payments.length})</span>
-                            <span className="text-[9px] text-amber-400 font-medium">Edit wrong amount</span>
-                          </div>
-                          <div className="max-h-[110px] overflow-y-auto space-y-1.5 pr-1">
-                            {student.payments.map((pay) => (
-                              <div key={pay._id} className="flex items-center justify-between bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 text-xs">
-                                <div>
-                                  <span className="font-semibold text-emerald-400">+{pay.amount.toLocaleString()}</span>
-                                  <span className="text-[10px] text-slate-500 ml-2">{pay.date} ({pay.paymentMethod})</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => openEditPaymentModal(student, pay)}
-                                    className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
-                                    title="Edit payment amount"
-                                  >
-                                    <Edit className="w-2.5 h-2.5" /> Edit
-                                  </button>
-                                  <button
-                                    onClick={() => generatePDFInvoice(student, pay)}
-                                    className="bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
-                                    title="Download receipt"
-                                  >
-                                    Receipt
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+              if (feeCollectionDate) {
+                const hasPaymentOnDate = (student.payments || []).some(p => p.date === feeCollectionDate);
+                const hasInvoiceOnDate = (student.invoices || []).some(inv => inv.dueDate === feeCollectionDate || inv.paidOn === feeCollectionDate);
+                return hasPaymentOnDate || hasInvoiceOnDate;
+              }
+
+              return true;
+            }).sort((a, b) => {
+              if (feeCollectionSort === 'date-desc') {
+                const dateA = getLatestDate(a);
+                const dateB = getLatestDate(b);
+                return dateB.localeCompare(dateA);
+              }
+              if (feeCollectionSort === 'date-asc') {
+                const dateA = getLatestDate(a);
+                const dateB = getLatestDate(b);
+                return dateA.localeCompare(dateB);
+              }
+              if (feeCollectionSort === 'due-desc') {
+                return (b.ledger?.balanceDue || 0) - (a.ledger?.balanceDue || 0);
+              }
+              if (feeCollectionSort === 'due-asc') {
+                return (a.ledger?.balanceDue || 0) - (b.ledger?.balanceDue || 0);
+              }
+              if (feeCollectionSort === 'name-asc') {
+                return (a.name || '').localeCompare(b.name || '');
+              }
+              if (feeCollectionSort === 'pending-first') {
+                const aPending = (a.ledger?.balanceDue || 0) > 0 ? 1 : 0;
+                const bPending = (b.ledger?.balanceDue || 0) > 0 ? 1 : 0;
+                if (bPending !== aPending) return bPending - aPending;
+                return (b.ledger?.balanceDue || 0) - (a.ledger?.balanceDue || 0);
+              }
+              return 0;
+            });
+
+            return (
+              <div className="space-y-6">
+                
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h2 className="text-xl font-extrabold text-white">Fee Collection Terminal</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">Quickly select a student to log a new payment.</p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <input
+                      type="text"
+                      placeholder="Search student..."
+                      value={feeCollectionSearch}
+                      onChange={(e) => setFeeCollectionSearch(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 shadow-inner"
+                    />
+
+                    {/* SELECT DATE PICKER */}
+                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-white">
+                      <span className="text-slate-400 font-medium">Select Date:</span>
+                      <input
+                        type="date"
+                        value={feeCollectionDate}
+                        onChange={(e) => setFeeCollectionDate(e.target.value)}
+                        className="bg-transparent border-none text-white font-semibold focus:outline-none cursor-pointer text-xs"
+                      />
+                      {feeCollectionDate && (
+                        <button
+                          onClick={() => setFeeCollectionDate('')}
+                          className="text-slate-400 hover:text-white text-[10px] bg-slate-800 hover:bg-slate-700 px-1.5 py-0.5 rounded cursor-pointer ml-1"
+                          title="Clear date filter"
+                        >
+                          Clear
+                        </button>
                       )}
                     </div>
 
-                    <button
-                      onClick={() => {
-                        setViewingStudent(student);
-                        setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
-                        setProfileModalMode('makePayment');
-                        setIsStudentProfileModalOpen(true);
-                      }}
-                      disabled={student.ledger.balanceDue === 0}
-                      className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                        student.ledger.balanceDue > 0 
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-lg shadow-emerald-900/20' 
-                          : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                      }`}
-                    >
-                      <DollarSign className="w-4 h-4" />
-                      {student.ledger.balanceDue > 0 ? 'Log New Payment' : 'Fully Paid'}
-                    </button>
-
+                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-white">
+                      <span className="text-slate-400 font-medium">Sort By:</span>
+                      <select
+                        value={feeCollectionSort}
+                        onChange={(e) => setFeeCollectionSort(e.target.value)}
+                        className="bg-transparent border-none text-white font-bold focus:outline-none cursor-pointer"
+                      >
+                        <option value="date-desc" className="bg-slate-950 text-white">Date: Newest First</option>
+                        <option value="date-asc" className="bg-slate-950 text-white">Date: Oldest First</option>
+                        <option value="due-desc" className="bg-slate-950 text-white">Highest Balance Due</option>
+                        <option value="due-asc" className="bg-slate-950 text-white">Lowest Balance Due</option>
+                        <option value="pending-first" className="bg-slate-950 text-white">Pending Payments First</option>
+                        <option value="name-asc" className="bg-slate-950 text-white">Student Name (A-Z)</option>
+                      </select>
+                    </div>
                   </div>
-                ))}
-              </div>
+                </div>
 
-            </div>
-          )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredFeeStudents.map(student => (
+                    <div key={student._id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/30 transition-all flex flex-col justify-between h-full">
+                      
+                      <div>
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-3">
+                            {student.profileImage ? (
+                              <img src={student.profileImage} alt={student.name} className="w-10 h-10 rounded-full object-cover border border-slate-700" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">
+                                {student.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div>
+                              <h3 className="text-white font-bold text-sm leading-tight">{student.name}</h3>
+                              <span className="text-slate-500 font-mono text-[10px]">{student.rollNumber} • {student.courseName}</span>
+                            </div>
+                          </div>
+                          <span className={`text-[9px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider ${
+                            student.ledger.paymentStatus === 'Fully Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                          }`}>
+                            {student.ledger.paymentStatus}
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-3">
+                          <div className="flex justify-between items-center mb-1">
+                            <p className="text-[10px] text-slate-400 uppercase font-semibold">Current Balance Due</p>
+                            <p className="text-[10px] text-slate-500 font-medium">Pkg: {student.ledger.totalPackageAmount.toLocaleString()}</p>
+                          </div>
+                          <p className={`text-xl font-extrabold ${student.ledger.balanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                            {student.ledger.balanceDue.toLocaleString()}
+                          </p>
+                        </div>
+
+                        {/* Logged Payments History */}
+                        {student.payments && student.payments.length > 0 && (
+                          <div className="mb-4 space-y-1.5">
+                            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              <span>Recorded Payments ({student.payments.length})</span>
+                            </div>
+                            <div className="max-h-[110px] overflow-y-auto space-y-1.5 pr-1">
+                              {student.payments.map((pay) => (
+                                <div key={pay._id} className="flex items-center justify-between bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 text-xs">
+                                  <div>
+                                    <span className="font-semibold text-emerald-400">+{pay.amount.toLocaleString()}</span>
+                                    <span className="text-[10px] text-slate-500 ml-2">{pay.date} ({pay.paymentMethod})</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => generatePDFInvoice(student, pay)}
+                                      className="bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
+                                      title="Download receipt"
+                                    >
+                                      Receipt
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setViewingStudent(student);
+                          setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
+                          setProfileModalMode('makePayment');
+                          setIsStudentProfileModalOpen(true);
+                        }}
+                        disabled={student.ledger.balanceDue === 0}
+                        className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                          student.ledger.balanceDue > 0 
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-lg shadow-emerald-900/20' 
+                            : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        }`}
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        {student.ledger.balanceDue > 0 ? 'Log New Payment' : 'Fully Paid'}
+                      </button>
+
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            );
+          })()}
 
           {/* TAB 4: OFFICE & HR MANAGER */}
           {activeTab === 'office' && (
@@ -2409,7 +2675,7 @@ export default function App() {
               <label className="block text-slate-400 font-medium mb-1">Profile Photo (1:1)</label>
               <input type="file" accept="image/*" onChange={(e) => handleFileChangeForCrop(e, 1, (base64) => setStudentForm(prev => ({...prev, profileImage: base64})))} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-[10px] focus:outline-none" />
               {studentForm.profileImage ? (
-                <div className="text-[10px] text-emerald-400 mt-1.5 font-semibold flex items-center gap-1">Ã¢Å“â€œ Photo ready & cropped</div>
+                <div className="text-[10px] text-emerald-400 mt-1.5 font-semibold flex items-center gap-1">✓ Photo ready & cropped</div>
               ) : (
                 <div className="text-[10px] text-slate-500 mt-1.5">No image loaded</div>
               )}
@@ -2419,7 +2685,7 @@ export default function App() {
               <label className="block text-slate-400 font-medium mb-1">ID Card (Landscape)</label>
               <input type="file" accept="image/*" onChange={(e) => handleFileChangeForCrop(e, 4/3, (base64) => setStudentForm(prev => ({...prev, idPhoto: base64})))} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-[10px] focus:outline-none" />
               {studentForm.idPhoto ? (
-                <div className="text-[10px] text-emerald-400 mt-1.5 font-semibold flex items-center gap-1">Ã¢Å“â€œ ID Card ready & cropped</div>
+                <div className="text-[10px] text-emerald-400 mt-1.5 font-semibold flex items-center gap-1">✓ ID Card ready & cropped</div>
               ) : (
                 <div className="text-[10px] text-slate-500 mt-1.5">No ID image loaded</div>
               )}
@@ -2429,7 +2695,7 @@ export default function App() {
               <label className="block text-slate-400 font-medium mb-1">SSLC Certificate (Portrait)</label>
               <input type="file" accept="image/*" onChange={(e) => handleFileChangeForCrop(e, 3/4, (base64) => setStudentForm(prev => ({...prev, sslcPhoto: base64})))} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-[10px] focus:outline-none" />
               {studentForm.sslcPhoto ? (
-                <div className="text-[10px] text-emerald-400 mt-1.5 font-semibold flex items-center gap-1">Ã¢Å“â€œ SSLC ready & cropped</div>
+                <div className="text-[10px] text-emerald-400 mt-1.5 font-semibold flex items-center gap-1">✓ SSLC ready & cropped</div>
               ) : (
                 <div className="text-[10px] text-slate-500 mt-1.5">No certificate loaded</div>
               )}
@@ -2622,15 +2888,17 @@ export default function App() {
                           <p className="text-[10px] text-slate-500">{pay.date}  |  {pay.paymentMethod}</p>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditPaymentModal(viewingStudent, pay);
-                            }}
-                            className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                          >
-                            <Edit className="w-3 h-3" /> Edit
-                          </button>
+                          {currentUser.role === 'Super Admin' && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditPaymentModal(viewingStudent, pay);
+                              }}
+                              className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <Edit className="w-3 h-3" /> Edit
+                            </button>
+                          )}
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
@@ -2758,17 +3026,17 @@ export default function App() {
               <div>
                 <label className="block text-slate-400 font-medium mb-1">Update Photo (1:1)</label>
                 <input type="file" accept="image/*" onChange={(e) => handleFileChangeForCrop(e, 1, (base64) => setEditingStudentForm(prev => ({...prev, profileImage: base64})))} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-[10px] focus:outline-none" />
-                {editingStudentForm.profileImage && <div className="text-[10px] text-emerald-400 mt-1 font-semibold">Ã¢Å“â€œ Photo Ready</div>}
+                {editingStudentForm.profileImage && <div className="text-[10px] text-emerald-400 mt-1 font-semibold">✓ Photo Ready</div>}
               </div>
               <div>
                 <label className="block text-slate-400 font-medium mb-1">Update ID (Landscape)</label>
                 <input type="file" accept="image/*" onChange={(e) => handleFileChangeForCrop(e, 4/3, (base64) => setEditingStudentForm(prev => ({...prev, idPhoto: base64})))} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-[10px] focus:outline-none" />
-                {editingStudentForm.idPhoto && <div className="text-[10px] text-emerald-400 mt-1 font-semibold">Ã¢Å“â€œ ID Card Ready</div>}
+                {editingStudentForm.idPhoto && <div className="text-[10px] text-emerald-400 mt-1 font-semibold">✓ ID Card Ready</div>}
               </div>
               <div>
                 <label className="block text-slate-400 font-medium mb-1">Update SSLC (Portrait)</label>
                 <input type="file" accept="image/*" onChange={(e) => handleFileChangeForCrop(e, 3/4, (base64) => setEditingStudentForm(prev => ({...prev, sslcPhoto: base64})))} className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-[10px] focus:outline-none" />
-                {editingStudentForm.sslcPhoto && <div className="text-[10px] text-emerald-400 mt-1 font-semibold">Ã¢Å“â€œ SSLC Ready</div>}
+                {editingStudentForm.sslcPhoto && <div className="text-[10px] text-emerald-400 mt-1 font-semibold">✓ SSLC Ready</div>}
               </div>
             </div>
             <div>
