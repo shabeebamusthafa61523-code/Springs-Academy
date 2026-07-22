@@ -124,29 +124,7 @@ export default function Auth() {
             </button>
           </form>
 
-          {isLoginView && (
-            <div className="mt-5 p-3.5 bg-slate-100 border border-slate-200 rounded-xl space-y-2 text-xs">
-              <p className="font-bold text-slate-700">Quick Demo Logins (Click to Fill):</p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ username: 'admin', password: 'password' })}
-                  className="bg-blue-600/15 hover:bg-blue-600 text-blue-700 hover:text-white font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer border border-blue-500/20"
-                >
-                  Super Admin (admin / password)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ username: 'finance@academy.com', password: 'password123' })}
-                  className="bg-emerald-600/15 hover:bg-emerald-600 text-emerald-700 hover:text-white font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer border border-emerald-500/20"
-                >
-                  Admin (finance@academy.com)
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-6 pt-5 border-t border-slate-200 text-center">
+          <div className="mt-8 pt-6 border-t border-slate-200 text-center">
             <p className="text-sm text-slate-400">
               {isLoginView ? "Don't have an account?" : "Already have an account?"}
               <button
