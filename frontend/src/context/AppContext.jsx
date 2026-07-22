@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const AppContext = createContext();
 
 export const useApp = () => useContext(AppContext);
+export const API_URL = import.meta.env.VITE_API_URL || 'https://springs-academy.onrender.com';
 
 // Initial state for fallback local storage mode
 const initialStudents = [
