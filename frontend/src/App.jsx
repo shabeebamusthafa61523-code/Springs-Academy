@@ -34,7 +34,9 @@ import {
   ChevronRight,
   ChevronDown,
   Edit,
-  Trash2
+  Trash2,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 
 export default function App() {
@@ -65,6 +67,8 @@ export default function App() {
     editPayment,
     getStats 
   } = useApp();
+
+  const visibleStudents = currentUser?.role === 'Super Admin' ? students : students.filter(s => !s.isConfidentialFee);
 
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
@@ -146,6 +150,7 @@ export default function App() {
   const [feeCollectionSort, setFeeCollectionSort] = useState('date-desc');
   const [feeCollectionSearch, setFeeCollectionSearch] = useState('');
   const [feeCollectionDate, setFeeCollectionDate] = useState('');
+  const [feeCollectionViewMode, setFeeCollectionViewMode] = useState('grid');
 
   // Rich Course Hub States
   const [isCourseFormModalOpen, setIsCourseFormModalOpen] = useState(false);
@@ -173,8 +178,12 @@ export default function App() {
   const handleStudentSubmit = (e) => {
     e.preventDefault();
     if (!studentForm.name || !studentForm.email) return;
-    addStudent(studentForm);
-    setStudentForm({ name: '', email: '', dob: '', customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, fatherName: '', motherName: '', parentsPhone: '', idPhoto: null, sslcPhoto: null, courseName: '', batchId: '', totalPackageAmount: 45000, installmentCount: 3 });
+    const submissionData = {
+      ...studentForm,
+      isConfidentialFee: currentUser?.role === 'Super Admin' ? Boolean(studentForm.isConfidentialFee) : false
+    };
+    addStudent(submissionData);
+    setStudentForm({ name: '', email: '', dob: '', customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, fatherName: '', motherName: '', parentsPhone: '', idPhoto: null, sslcPhoto: null, courseName: '', batchId: '', totalPackageAmount: 45000, installmentCount: 3, isConfidentialFee: false });
     setIsStudentModalOpen(false);
     toast.success("Student registered successfully! Invoices generated.");
   };
@@ -304,7 +313,7 @@ export default function App() {
     doc.setFontSize(10);
     doc.setTextColor(148, 163, 184);
     doc.text("Student Admissions Registry Directory Report", 15, 26);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total Students: ${students.length}`, 15, 32);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total Students: ${visibleStudents.length}`, 15, 32);
 
     let startY = 50;
     doc.setFont("helvetica", "bold");
@@ -326,7 +335,7 @@ export default function App() {
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105);
     
-    students.forEach((student) => {
+    visibleStudents.forEach((student) => {
       if (currentY > 280) {
         doc.addPage();
         currentY = 20;
@@ -437,6 +446,85 @@ export default function App() {
     
     doc.save("Payment_Activity_Feed.pdf");
     toast.success("Payment activity report downloaded successfully!");
+  };
+
+  const generateFeeCollectionTerminalPDF = (feeStudentsList) => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, 210, 40, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("SPRINGS ACADEMY", 15, 18);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(148, 163, 184);
+    doc.text("Fee Collection Terminal - Student Ledger & Outstanding Status", 15, 26);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total Records: ${(feeStudentsList || []).length}`, 15, 32);
+    
+    let startY = 50;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(51, 65, 85);
+    
+    doc.text("Roll Number", 15, startY);
+    doc.text("Student Name", 45, startY);
+    doc.text("Course", 95, startY);
+    doc.text("Pkg (INR)", 135, startY);
+    doc.text("Paid (INR)", 160, startY);
+    doc.text("Due (INR)", 185, startY);
+    
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(15, startY + 2, 195, startY + 2);
+    
+    let currentY = startY + 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    
+    (feeStudentsList || []).forEach((student) => {
+      if (currentY > 280) {
+        doc.addPage();
+        currentY = 20;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(51, 65, 85);
+        doc.text("Roll Number", 15, currentY);
+        doc.text("Student Name", 45, currentY);
+        doc.text("Course", 95, currentY);
+        doc.text("Pkg (INR)", 135, currentY);
+        doc.text("Paid (INR)", 160, currentY);
+        doc.text("Due (INR)", 185, currentY);
+        doc.line(15, currentY + 2, 195, currentY + 2);
+        currentY += 8;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(71, 85, 105);
+      }
+      
+      const pkg = student.ledger?.totalPackageAmount || 0;
+      const paid = student.ledger?.amountPaid || 0;
+      const due = student.ledger?.balanceDue || 0;
+
+      doc.text(student.rollNumber || 'N/A', 15, currentY);
+      doc.text(student.name || 'N/A', 45, currentY);
+      doc.text(student.courseName || 'N/A', 95, currentY);
+      doc.text(pkg.toLocaleString(), 135, currentY);
+      doc.text(paid.toLocaleString(), 160, currentY);
+      doc.text(due.toLocaleString(), 185, currentY);
+      
+      doc.setDrawColor(241, 245, 249);
+      doc.line(15, currentY + 3, 195, currentY + 3);
+      
+      currentY += 8;
+    });
+    
+    doc.save("Fee_Collection_Terminal_Report.pdf");
+    toast.success("Fee Collection Terminal PDF downloaded successfully!");
   };
 
   const handleFileChangeForCrop = (e, aspect, callback) => {
@@ -801,6 +889,9 @@ export default function App() {
   };
 
   const allPayments = students.reduce((acc, student) => {
+    if (currentUser?.role !== 'Super Admin' && student.isConfidentialFee) {
+      return acc;
+    }
     if (student.payments) {
       const studentPayments = student.payments.map(pay => ({
         ...pay,
@@ -1027,7 +1118,7 @@ export default function App() {
           {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (() => {
             // Live payment array flatmap
-            const allPaymentsRaw = students.flatMap(s => (s.payments || []).map(p => ({
+            const allPaymentsRaw = visibleStudents.flatMap(s => (s.payments || []).map(p => ({
               ...p,
               studentName: s.name,
               studentImage: s.profileImage,
@@ -1037,7 +1128,7 @@ export default function App() {
 
             // Monthly dropdown options
             const availableMonths = Array.from(new Set(
-              students.flatMap(s => (s.payments || []).map(p => p.date ? p.date.substring(0, 7) : null))
+              visibleStudents.flatMap(s => (s.payments || []).map(p => p.date ? p.date.substring(0, 7) : null))
                 .filter(Boolean)
             )).sort().reverse();
 
@@ -1057,7 +1148,7 @@ export default function App() {
             // KPI calculations based on monthly filter (including extra income)
             const monthlyCollected = filteredPayments.reduce((sum, p) => sum + p.amount, 0) + monthlyExtraCollected;
 
-            const monthlyOutstanding = students.reduce((sum, s) => {
+            const monthlyOutstanding = visibleStudents.reduce((sum, s) => {
               const pendingInvoices = (s.invoices || []).filter(inv => {
                 if (inv.status === 'Paid') return false;
                 if (dashboardMonth === 'All') return true;
@@ -1079,7 +1170,7 @@ export default function App() {
 
             // Bar chart data filtered by month
             const revenueByCourseFull = courses.map(c => {
-              const courseStudents = students.filter(s => s.courseName === c.name);
+              const courseStudents = visibleStudents.filter(s => s.courseName === c.name);
               const enrolled = courseStudents.filter(s => {
                 if (dashboardMonth === 'All') return true;
                 const regMonth = s.invoices && s.invoices[0] ? s.invoices[0].dueDate.substring(0, 7) : null;
@@ -1111,21 +1202,21 @@ export default function App() {
 
             // Donut chart filtered by month
             const paymentStatusBreakdown = [
-              { name: 'Fully Paid', value: students.filter(s => {
+              { name: 'Fully Paid', value: visibleStudents.filter(s => {
                   if (dashboardMonth !== 'All') {
                     const regMonth = s.invoices && s.invoices[0] ? s.invoices[0].dueDate.substring(0, 7) : null;
                     if (regMonth !== dashboardMonth) return false;
                   }
                   return s.ledger.paymentStatus === 'Fully Paid';
                 }).length, fill: '#10b981' },
-              { name: 'Partially Paid', value: students.filter(s => {
+              { name: 'Partially Paid', value: visibleStudents.filter(s => {
                   if (dashboardMonth !== 'All') {
                     const regMonth = s.invoices && s.invoices[0] ? s.invoices[0].dueDate.substring(0, 7) : null;
                     if (regMonth !== dashboardMonth) return false;
                   }
                   return s.ledger.paymentStatus === 'Partially Paid';
                 }).length, fill: '#f59e0b' },
-              { name: 'Unpaid', value: students.filter(s => {
+              { name: 'Unpaid', value: visibleStudents.filter(s => {
                   if (dashboardMonth !== 'All') {
                     const regMonth = s.invoices && s.invoices[0] ? s.invoices[0].dueDate.substring(0, 7) : null;
                     if (regMonth !== dashboardMonth) return false;
@@ -1205,12 +1296,12 @@ export default function App() {
                   {[
                     { 
                       label: 'Total Students', 
-                      value: students.filter(s => {
+                      value: visibleStudents.filter(s => {
                         if (dashboardMonth === 'All') return true;
                         const regMonth = s.invoices && s.invoices[0] ? s.invoices[0].dueDate.substring(0, 7) : null;
                         return regMonth === dashboardMonth;
                       }).length, 
-                      sub: `${students.filter(s => {
+                      sub: `${visibleStudents.filter(s => {
                         if (dashboardMonth !== 'All') {
                           const regMonth = s.invoices && s.invoices[0] ? s.invoices[0].dueDate.substring(0, 7) : null;
                           if (regMonth !== dashboardMonth) return false;
@@ -1238,7 +1329,7 @@ export default function App() {
                       bg: 'bg-violet-500/10 border-violet-500/20' 
                     },
                     { 
-                      label: 'Net Cash Position', 
+                      label: 'Total Net Amount', 
                       value: `${monthlyNetProfit.toLocaleString()}`, 
                       sub: `Payroll: ${monthlyPayroll.toLocaleString()}`, 
                       icon: <DollarSign className="w-5 h-5" />, 
@@ -1389,13 +1480,13 @@ export default function App() {
 
                 </div>
 
-                {/* Ã¢â€â‚¬Ã¢â€â‚¬ Ledger Table Ã¢â€â‚¬Ã¢â€â‚¬ */}
-                {(currentUser.role === 'Super Admin' || currentUser.role === 'Admin') && students.length > 0 && (
+                {/* Ledger Table */}
+                {(currentUser.role === 'Super Admin' || currentUser.role === 'Admin') && visibleStudents.length > 0 && (
                   <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden">
                     <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-800">
                       <TrendingUp className="w-4 h-4 text-blue-400" />
                       <h3 className="text-sm font-bold text-white">Student Ledgers Overview</h3>
-                      <span className="ml-auto text-[10px] text-slate-500">{students.length} records</span>
+                      <span className="ml-auto text-[10px] text-slate-500">{visibleStudents.length} records</span>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs text-slate-300">
@@ -1411,7 +1502,7 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody>
-                          {students.map((student) => (
+                          {visibleStudents.map((student) => (
                             <tr
                               key={student._id}
                               className="border-b border-slate-900 hover:bg-slate-900/50 cursor-pointer transition-colors"
@@ -1428,22 +1519,47 @@ export default function App() {
                                     </div>
                                   )}
                                   <span className="font-semibold text-white">{student.name}</span>
+                                  {student.isConfidentialFee && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20" title="Restricted to Super Admin">🔒 Confidential</span>
+                                  )}
                                 </div>
                               </td>
                               <td className="py-3 px-4 text-slate-400">{student.courseName}</td>
-                              <td className="py-3 px-4 text-slate-300">{student.ledger.totalPackageAmount.toLocaleString()}</td>
-                              <td className="py-3 px-4 text-emerald-400 font-semibold">{student.ledger.amountPaid.toLocaleString()}</td>
-                              <td className="py-3 px-4 text-rose-400 font-semibold">{student.ledger.balanceDue.toLocaleString()}</td>
+                              <td className="py-3 px-4 text-slate-300">
+                                {student.isConfidentialFee && currentUser.role !== 'Super Admin' ? (
+                                  <span className="text-slate-500 italic text-[11px]">🔒 Restricted</span>
+                                ) : (
+                                  student.ledger.totalPackageAmount.toLocaleString()
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-emerald-400 font-semibold">
+                                {student.isConfidentialFee && currentUser.role !== 'Super Admin' ? (
+                                  <span className="text-slate-500 italic text-[11px]">🔒 Restricted</span>
+                                ) : (
+                                  student.ledger.amountPaid.toLocaleString()
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-rose-400 font-semibold">
+                                {student.isConfidentialFee && currentUser.role !== 'Super Admin' ? (
+                                  <span className="text-slate-500 italic text-[11px]">🔒 Restricted</span>
+                                ) : (
+                                  student.ledger.balanceDue.toLocaleString()
+                                )}
+                              </td>
                               <td className="py-3 px-4">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
-                                  student.ledger.paymentStatus === 'Fully Paid'
-                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                    : student.ledger.paymentStatus === 'Partially Paid'
-                                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                                }`}>
-                                  {student.ledger.paymentStatus}
-                                </span>
+                                {student.isConfidentialFee && currentUser.role !== 'Super Admin' ? (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide bg-slate-800 text-slate-400 border border-slate-700">🔒 Restricted</span>
+                                ) : (
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide ${
+                                    student.ledger.paymentStatus === 'Fully Paid'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                      : student.ledger.paymentStatus === 'Partially Paid'
+                                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                      : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                  }`}>
+                                    {student.ledger.paymentStatus}
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -1466,7 +1582,7 @@ export default function App() {
 
           {/* TAB 2: STUDENT ADMISSIONS - TABLE WITH EXPANDABLE DROPDOWN ROW DETAILS */}
           {activeTab === 'students' && (() => {
-            const filteredStudents = students.filter(student => {
+            const filteredStudents = visibleStudents.filter(student => {
               const query = studentSearchQuery.toLowerCase();
               return (
                 (student.name && student.name.toLowerCase().includes(query)) ||
@@ -1513,7 +1629,7 @@ export default function App() {
                     onChange={(e) => setStudentSearchQuery(e.target.value)}
                     className="w-full sm:max-w-md bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 placeholder-slate-500 text-xs shadow-inner"
                   />
-                  <span className="text-xs text-slate-500 font-medium">Showing {filteredStudents.length} of {students.length} students</span>
+                  <span className="text-xs text-slate-500 font-medium">Showing {filteredStudents.length} of {visibleStudents.length} students</span>
                 </div>
 
                 {/* Enrolled Students Table Database */}
@@ -1523,7 +1639,7 @@ export default function App() {
                       <Users className="w-5 h-5 text-blue-400" />
                       Enrolled Students Database
                     </h3>
-                    <span className="text-[10px] text-slate-500 font-medium">Showing {filteredStudents.length} of {students.length}</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Showing {filteredStudents.length} of {visibleStudents.length}</span>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -1996,7 +2112,8 @@ export default function App() {
               return (student.invoices && student.invoices[0]) ? (student.invoices[0].dueDate || '') : '';
             };
 
-            const filteredFeeStudents = students.filter(student => {
+            const activeFeeStudents = currentUser?.role === 'Super Admin' ? students : students.filter(s => !s.isConfidentialFee);
+            const filteredFeeStudents = activeFeeStudents.filter(student => {
               const query = feeCollectionSearch.toLowerCase();
               const matchesSearch = !query ||
                 (student.name && student.name.toLowerCase().includes(query)) ||
@@ -2094,104 +2211,231 @@ export default function App() {
                         <option value="name-asc" className="bg-slate-950 text-white">Student Name (A-Z)</option>
                       </select>
                     </div>
+
+                    {/* View Mode Toggle: Grid vs List */}
+                    <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1">
+                      <button
+                        type="button"
+                        onClick={() => setFeeCollectionViewMode('grid')}
+                        className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          feeCollectionViewMode === 'grid' 
+                            ? 'bg-blue-600 text-white shadow-sm font-bold' 
+                            : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                        }`}
+                        title="Grid View"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Grid</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFeeCollectionViewMode('list')}
+                        className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          feeCollectionViewMode === 'list' 
+                            ? 'bg-blue-600 text-white shadow-sm font-bold' 
+                            : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                        }`}
+                        title="List View"
+                      >
+                        <List className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">List</span>
+                      </button>
+                    </div>
+
+                    {/* Download PDF Button */}
+                    <button
+                      type="button"
+                      onClick={() => generateFeeCollectionTerminalPDF(filteredFeeStudents)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-xl border border-blue-500/20 shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                      title="Download Fee Collection Terminal Report as PDF"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Download PDF</span>
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredFeeStudents.map(student => (
-                    <div key={student._id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/30 transition-all flex flex-col justify-between h-full">
-                      
-                      <div>
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center gap-3">
-                            {student.profileImage ? (
-                              <img src={student.profileImage} alt={student.name} className="w-10 h-10 rounded-full object-cover border border-slate-700" />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">
-                                {student.name.charAt(0).toUpperCase()}
+                {filteredFeeStudents.length === 0 ? (
+                  <div className="glass-panel p-12 rounded-2xl border border-slate-800 text-center text-slate-500 text-sm">
+                    No students found matching current filters.
+                  </div>
+                ) : feeCollectionViewMode === 'grid' ? (
+                  /* GRID VIEW */
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredFeeStudents.map(student => (
+                      <div key={student._id} className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 hover:border-emerald-500/30 transition-all flex flex-col justify-between h-full">
+                        
+                        <div>
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center gap-3">
+                              {student.profileImage ? (
+                                <img src={student.profileImage} alt={student.name} className="w-10 h-10 rounded-full object-cover border border-slate-700" />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">
+                                  {student.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div>
+                                <h3 className="text-white font-bold text-sm leading-tight">{student.name}</h3>
+                                <span className="text-slate-500 font-mono text-[10px]">{student.rollNumber} • {student.courseName}</span>
                               </div>
-                            )}
-                            <div>
-                              <h3 className="text-white font-bold text-sm leading-tight">{student.name}</h3>
-                              <span className="text-slate-500 font-mono text-[10px]">{student.rollNumber} • {student.courseName}</span>
                             </div>
+                            <span className={`text-[9px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider ${
+                              student.ledger.paymentStatus === 'Fully Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                            }`}>
+                              {student.ledger.paymentStatus}
+                            </span>
                           </div>
-                          <span className={`text-[9px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider ${
-                            student.ledger.paymentStatus === 'Fully Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                          }`}>
-                            {student.ledger.paymentStatus}
-                          </span>
-                        </div>
 
-                        <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-3">
-                          <div className="flex justify-between items-center mb-1">
-                            <p className="text-[10px] text-slate-400 uppercase font-semibold">Current Balance Due</p>
-                            <p className="text-[10px] text-slate-500 font-medium">Pkg: {student.ledger.totalPackageAmount.toLocaleString()}</p>
-                          </div>
-                          <p className={`text-xl font-extrabold ${student.ledger.balanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                            {student.ledger.balanceDue.toLocaleString()}
-                          </p>
-                        </div>
-
-                        {/* Logged Payments History */}
-                        {student.payments && student.payments.length > 0 && (
-                          <div className="mb-4 space-y-1.5">
-                            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                              <span>Recorded Payments ({student.payments.length})</span>
+                          <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-3">
+                            <div className="flex justify-between items-center mb-1">
+                              <p className="text-[10px] text-slate-400 uppercase font-semibold">Current Balance Due</p>
+                              <p className="text-[10px] text-slate-500 font-medium">Pkg: ₹{student.ledger.totalPackageAmount.toLocaleString()}</p>
                             </div>
-                            <div className="max-h-[110px] overflow-y-auto space-y-1.5 pr-1">
-                              {student.payments.map((pay) => (
-                                <div key={pay._id} className="flex items-center justify-between bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 text-xs">
-                                  <div>
-                                    <span className="font-semibold text-emerald-400">+{pay.amount.toLocaleString()}</span>
-                                    <span className="text-[10px] text-slate-500 ml-2">{pay.date} ({pay.paymentMethod})</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {currentUser.role === 'Super Admin' && (
+                            <p className={`text-xl font-extrabold ${student.ledger.balanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                              ₹{student.ledger.balanceDue.toLocaleString()}
+                            </p>
+                          </div>
+
+                          {/* Logged Payments History */}
+                          {student.payments && student.payments.length > 0 && (
+                            <div className="mb-4 space-y-1.5">
+                              <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                <span>Recorded Payments ({student.payments.length})</span>
+                              </div>
+                              <div className="max-h-[110px] overflow-y-auto space-y-1.5 pr-1">
+                                {student.payments.map((pay) => (
+                                  <div key={pay._id} className="flex items-center justify-between bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 text-xs">
+                                    <div>
+                                      <span className="font-semibold text-emerald-400">+₹{pay.amount.toLocaleString()}</span>
+                                      <span className="text-[10px] text-slate-500 ml-2">{pay.date} ({pay.paymentMethod})</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {currentUser.role === 'Super Admin' && (
+                                        <button
+                                          onClick={() => openEditPaymentModal(student, pay)}
+                                          className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                          title="Edit payment amount"
+                                        >
+                                          <Edit className="w-3 h-3" /> Edit
+                                        </button>
+                                      )}
                                       <button
-                                        onClick={() => openEditPaymentModal(student, pay)}
-                                        className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
-                                        title="Edit payment amount"
+                                        onClick={() => generatePDFInvoice(student, pay)}
+                                        className="bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
+                                        title="Download receipt"
                                       >
-                                        <Edit className="w-3 h-3" /> Edit
+                                        Receipt
                                       </button>
-                                    )}
-                                    <button
-                                      onClick={() => generatePDFInvoice(student, pay)}
-                                      className="bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
-                                      title="Download receipt"
-                                    >
-                                      Receipt
-                                    </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setViewingStudent(student);
+                            setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
+                            setProfileModalMode('makePayment');
+                            setIsStudentProfileModalOpen(true);
+                          }}
+                          disabled={student.ledger.balanceDue === 0}
+                          className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                            student.ledger.balanceDue > 0 
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-lg shadow-emerald-900/20' 
+                              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                          }`}
+                        >
+                          <DollarSign className="w-4 h-4" />
+                          {student.ledger.balanceDue > 0 ? 'Log New Payment' : 'Fully Paid'}
+                        </button>
+
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* LIST VIEW */
+                  <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-300 border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-slate-400 font-semibold bg-slate-900/60">
+                            <th className="py-3.5 px-4">Student</th>
+                            <th className="py-3.5 px-4">Course & Batch</th>
+                            <th className="py-3.5 px-4">Total Package</th>
+                            <th className="py-3.5 px-4">Amount Paid</th>
+                            <th className="py-3.5 px-4">Balance Due</th>
+                            <th className="py-3.5 px-4">Payment Status</th>
+                            <th className="py-3.5 px-4 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          {filteredFeeStudents.map(student => (
+                            <tr key={student._id} className="hover:bg-slate-900/40 transition-colors">
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-3">
+                                  {student.profileImage ? (
+                                    <img src={student.profileImage} alt={student.name} className="w-8 h-8 rounded-full object-cover border border-slate-700" />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700 text-xs">
+                                      {student.name.charAt(0).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="font-bold text-white leading-tight">{student.name}</p>
+                                    <p className="text-slate-500 font-mono text-[10px]">{student.rollNumber}</p>
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setViewingStudent(student);
-                          setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
-                          setProfileModalMode('makePayment');
-                          setIsStudentProfileModalOpen(true);
-                        }}
-                        disabled={student.ledger.balanceDue === 0}
-                        className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                          student.ledger.balanceDue > 0 
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-lg shadow-emerald-900/20' 
-                            : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                        }`}
-                      >
-                        <DollarSign className="w-4 h-4" />
-                        {student.ledger.balanceDue > 0 ? 'Log New Payment' : 'Fully Paid'}
-                      </button>
-
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <p className="text-slate-300 font-medium">{student.courseName}</p>
+                                <p className="text-[10px] text-slate-500">{student.batchId}</p>
+                              </td>
+                              <td className="py-3.5 px-4 text-slate-300 font-medium">
+                                ₹{student.ledger.totalPackageAmount.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-4 text-emerald-400 font-semibold">
+                                ₹{student.ledger.amountPaid.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-4 font-bold text-rose-400">
+                                ₹{student.ledger.balanceDue.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span className={`text-[9px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                                  student.ledger.paymentStatus === 'Fully Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                                }`}>
+                                  {student.ledger.paymentStatus}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right">
+                                <button
+                                  onClick={() => {
+                                    setViewingStudent(student);
+                                    setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
+                                    setProfileModalMode('makePayment');
+                                    setIsStudentProfileModalOpen(true);
+                                  }}
+                                  disabled={student.ledger.balanceDue === 0}
+                                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
+                                    student.ledger.balanceDue > 0 
+                                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-md shadow-emerald-900/20' 
+                                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                  }`}
+                                >
+                                  <DollarSign className="w-3.5 h-3.5" />
+                                  {student.ledger.balanceDue > 0 ? 'Log Payment' : 'Fully Paid'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
 
               </div>
             );
@@ -2399,7 +2643,7 @@ export default function App() {
                 </div>
                 <div className="glass-panel rounded-2xl p-5 border border-slate-800">
                   <p className="text-slate-400 text-xs mb-1">Active Enrollments</p>
-                  <p className="text-2xl font-extrabold text-blue-300">{students.length}</p>
+                  <p className="text-2xl font-extrabold text-blue-300">{visibleStudents.length}</p>
                 </div>
               </div>
 
@@ -2413,7 +2657,7 @@ export default function App() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                   {courses.map((course) => {
-                    const enrolledCount = students.filter(s => s.courseName === course.name).length;
+                    const enrolledCount = visibleStudents.filter(s => s.courseName === course.name).length;
                     return (
                       <div key={course._id} className="glass-panel rounded-2xl p-6 border border-slate-800 hover:border-slate-700 flex flex-col justify-between gap-4 transition-all hover:-translate-y-0.5">
                         
@@ -2716,7 +2960,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Row 6: Installments Allowed */}
+          {/* Row 6: Installments Allowed & Confidential Fee Privacy */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-slate-400 font-medium mb-1">Installments Allowed</label>
@@ -2728,6 +2972,21 @@ export default function App() {
                 <option value={6}>6 Installments</option>
               </select>
             </div>
+
+            {currentUser.role === 'Super Admin' && (
+              <div className="sm:col-span-2 flex items-center gap-2 mt-6 p-3 bg-slate-900 border border-slate-800 rounded-xl">
+                <input 
+                  type="checkbox" 
+                  id="isConfidentialFee" 
+                  checked={studentForm.isConfidentialFee || false} 
+                  onChange={(e) => setStudentForm({ ...studentForm, isConfidentialFee: e.target.checked })} 
+                  className="w-4 h-4 text-amber-500 rounded border-slate-700 bg-slate-800 focus:ring-amber-500 accent-amber-500 cursor-pointer"
+                />
+                <label htmlFor="isConfidentialFee" className="text-xs text-amber-400 font-semibold cursor-pointer select-none flex items-center gap-1.5">
+                  🔒 Restrict Fee Visibility (Super Admin Only)
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Row 7: Document & Photo uploads (Cropper Triggered) */}
@@ -2932,48 +3191,58 @@ export default function App() {
 
             {/* Financial Overview & Payment History */}
             <div className="mt-6 pt-4 border-t border-slate-800">
-              <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 text-center mb-4">
-                <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-1">Balance Due</p>
-                <p className="text-4xl font-bold text-rose-500">{viewingStudent.ledger.balanceDue.toLocaleString()}</p>
-                <p className="text-xs text-slate-500 mt-2">Total Package: {viewingStudent.ledger.totalPackageAmount.toLocaleString()} | Paid: {viewingStudent.ledger.amountPaid.toLocaleString()}</p>
-              </div>
-
-              {viewingStudent.payments && viewingStudent.payments.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-sm font-bold text-white mb-2">Payment History</h4>
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                    {viewingStudent.payments.map(pay => (
-                      <div key={pay._id} className="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800">
-                        <div>
-                          <p className="font-semibold text-emerald-400">{pay.amount.toLocaleString()}</p>
-                          <p className="text-[10px] text-slate-500">{pay.date}  |  {pay.paymentMethod}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {currentUser.role === 'Super Admin' && (
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditPaymentModal(viewingStudent, pay);
-                              }}
-                              className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                            >
-                              <Edit className="w-3 h-3" /> Edit
-                            </button>
-                          )}
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              generatePDFInvoice(viewingStudent, pay);
-                            }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                          >
-                            Invoice
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {viewingStudent.isConfidentialFee && currentUser.role !== 'Super Admin' ? (
+                <div className="bg-amber-500/10 p-5 rounded-2xl border border-amber-500/20 text-center mb-4">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-2 text-lg">🔒</div>
+                  <h4 className="text-sm font-bold text-amber-400">Restricted Fee Record</h4>
+                  <p className="text-xs text-slate-400 mt-1">Fee ledger, balance due, and payment transactions for this student are strictly restricted to Super Admin.</p>
                 </div>
+              ) : (
+                <>
+                  <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 text-center mb-4">
+                    <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-1">Balance Due</p>
+                    <p className="text-4xl font-bold text-rose-500">{viewingStudent.ledger.balanceDue.toLocaleString()}</p>
+                    <p className="text-xs text-slate-500 mt-2">Total Package: {viewingStudent.ledger.totalPackageAmount.toLocaleString()} | Paid: {viewingStudent.ledger.amountPaid.toLocaleString()}</p>
+                  </div>
+
+                  {viewingStudent.payments && viewingStudent.payments.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-bold text-white mb-2">Payment History</h4>
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                        {viewingStudent.payments.map(pay => (
+                          <div key={pay._id} className="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800">
+                            <div>
+                              <p className="font-semibold text-emerald-400">{pay.amount.toLocaleString()}</p>
+                              <p className="text-[10px] text-slate-500">{pay.date}  |  {pay.paymentMethod}</p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {currentUser.role === 'Super Admin' && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditPaymentModal(viewingStudent, pay);
+                                  }}
+                                  className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  <Edit className="w-3 h-3" /> Edit
+                                </button>
+                              )}
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  generatePDFInvoice(viewingStudent, pay);
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                              >
+                                Invoice
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -3100,10 +3369,21 @@ export default function App() {
                 {editingStudentForm.sslcPhoto && <div className="text-[10px] text-emerald-400 mt-1 font-semibold">✓ SSLC Ready</div>}
               </div>
             </div>
-            <div>
-              <label className="block text-slate-400 font-medium mb-1">Address</label>
-              <textarea value={editingStudentForm.address} onChange={(e) => setEditingStudentForm({...editingStudentForm, address: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-blue-500 resize-none h-16" />
-            </div>
+            {currentUser.role === 'Super Admin' && (
+              <div className="flex items-center gap-2 p-3 bg-slate-900 border border-slate-800 rounded-xl">
+                <input 
+                  type="checkbox" 
+                  id="editIsConfidentialFee" 
+                  checked={editingStudentForm.isConfidentialFee || false} 
+                  onChange={(e) => setEditingStudentForm({ ...editingStudentForm, isConfidentialFee: e.target.checked })} 
+                  className="w-4 h-4 text-amber-500 rounded border-slate-700 bg-slate-800 focus:ring-amber-500 accent-amber-500 cursor-pointer"
+                />
+                <label htmlFor="editIsConfidentialFee" className="text-xs text-amber-400 font-semibold cursor-pointer select-none flex items-center gap-1.5">
+                  🔒 Restrict Fee Visibility (Super Admin Only)
+                </label>
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={() => setProfileModalMode('view')} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white rounded-xl py-2.5 font-semibold transition-all cursor-pointer">Cancel</button>
               <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 font-semibold transition-all cursor-pointer">Save Changes</button>

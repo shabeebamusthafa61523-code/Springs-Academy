@@ -27,6 +27,10 @@ const studentSchema = new mongoose.Schema({
     type: String,
     enum: ['Active', 'Completed', 'Dropped'],
     default: 'Active'
+  },
+  isConfidentialFee: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 

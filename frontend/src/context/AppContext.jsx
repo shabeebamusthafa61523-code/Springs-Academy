@@ -249,6 +249,7 @@ export const AppProvider = ({ children }) => {
       batchId: studentData.batchId,
       courseName: studentData.courseName,
       status: "Active",
+      isConfidentialFee: Boolean(studentData.isConfidentialFee),
       ledger: {
         totalPackageAmount: studentData.totalPackageAmount,
         amountPaid: 0,
@@ -280,6 +281,7 @@ export const AppProvider = ({ children }) => {
           qualification: updatedData.qualification !== undefined ? updatedData.qualification : s.qualification,
           courseName: updatedData.courseName || s.courseName,
           batchId: updatedData.batchId || s.batchId,
+          isConfidentialFee: updatedData.isConfidentialFee !== undefined ? Boolean(updatedData.isConfidentialFee) : s.isConfidentialFee,
           profileImage: updatedData.profileImage !== undefined ? updatedData.profileImage : s.profileImage,
           idPhoto: updatedData.idPhoto !== undefined ? updatedData.idPhoto : s.idPhoto,
           sslcPhoto: updatedData.sslcPhoto !== undefined ? updatedData.sslcPhoto : s.sslcPhoto,
@@ -612,11 +614,13 @@ export const AppProvider = ({ children }) => {
   };
 
   // Stats
-  const getStats = () => {
+  const getStats = (userRole = currentUser?.role) => {
     const totalPayroll = employees.reduce((sum, e) => sum + e.salary, 0);
-    const totalCourseRevenue = students.reduce((sum, s) => sum + s.ledger.totalPackageAmount, 0);
-    const totalCollected = students.reduce((sum, s) => sum + s.ledger.amountPaid, 0);
-    const totalOutstanding = students.reduce((sum, s) => sum + s.ledger.balanceDue, 0);
+    // If not Super Admin, exclude confidential fee students from revenue / collection statistics
+    const statsStudents = userRole === 'Super Admin' ? students : students.filter(s => !s.isConfidentialFee);
+    const totalCourseRevenue = statsStudents.reduce((sum, s) => sum + (s.ledger?.totalPackageAmount || 0), 0);
+    const totalCollected = statsStudents.reduce((sum, s) => sum + (s.ledger?.amountPaid || 0), 0);
+    const totalOutstanding = statsStudents.reduce((sum, s) => sum + (s.ledger?.balanceDue || 0), 0);
     const totalExpenses = expenses
       .filter(exp => exp.status === 'Approved')
       .reduce((sum, exp) => sum + exp.amount, 0);

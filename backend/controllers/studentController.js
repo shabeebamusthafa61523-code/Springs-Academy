@@ -29,7 +29,8 @@ export const registerStudent = async (req, res) => {
       email,
       batchId,
       courseName,
-      status: 'Active'
+      status: 'Active',
+      isConfidentialFee: req.body.isConfidentialFee || false
     });
 
     // 2. Create Student Fees Ledger
