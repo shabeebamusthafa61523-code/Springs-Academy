@@ -155,20 +155,21 @@ export const AppProvider = ({ children }) => {
     return false;
   };
 
-  const register = (username, password) => {
-    if (users.find(u => u.username === username)) {
+  const register = (username, password, role = 'Super Admin') => {
+    const cleanUsername = (username || '').trim();
+    if (users.find(u => u.username && u.username.toLowerCase() === cleanUsername.toLowerCase())) {
       return false; // Username exists
     }
     const newUser = {
       _id: 'u_' + Math.random().toString(36).substr(2, 9),
-      username,
+      username: cleanUsername,
       password,
-      name: username,
-      email: `${username}@academy.com`,
-      role: 'Super Admin', // Default role for mock testing
-      department: 'Executive',
-      designation: 'Academy Director',
-      salary: 120000
+      name: cleanUsername,
+      email: `${cleanUsername.toLowerCase()}@academy.com`,
+      role: role || 'Super Admin',
+      department: role === 'Super Admin' ? 'Executive' : 'Finance & HR',
+      designation: role === 'Super Admin' ? 'Academy Director' : 'Accounts Manager',
+      salary: role === 'Super Admin' ? 120000 : 60000
     };
     setUsers(prev => [...prev, newUser]);
     setCurrentUser(newUser);

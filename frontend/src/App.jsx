@@ -2104,6 +2104,15 @@ export default function App() {
                                     <span className="text-[10px] text-slate-500 ml-2">{pay.date} ({pay.paymentMethod})</span>
                                   </div>
                                   <div className="flex items-center gap-1">
+                                    {currentUser.role === 'Super Admin' && (
+                                      <button
+                                        onClick={() => openEditPaymentModal(student, pay)}
+                                        className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                        title="Edit payment amount"
+                                      >
+                                        <Edit className="w-3 h-3" /> Edit
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => generatePDFInvoice(student, pay)}
                                       className="bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"

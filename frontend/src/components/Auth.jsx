@@ -6,7 +6,7 @@ import { ArrowRight, UserPlus, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-re
 export default function Auth() {
   const { login, register } = useApp();
   const [isLoginView, setIsLoginView] = useState(true);
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [formData, setFormData] = useState({ username: '', password: '', role: 'Super Admin' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
@@ -25,7 +25,7 @@ export default function Auth() {
         setError('Invalid username or password.');
       }
     } else {
-      const success = register(formData.username, formData.password);
+      const success = register(formData.username, formData.password, formData.role || 'Super Admin');
       if (!success) {
         setError('Username already exists. Please choose another.');
       }
@@ -35,7 +35,7 @@ export default function Auth() {
   const toggleView = () => {
     setIsLoginView(!isLoginView);
     setError('');
-    setFormData({ username: '', password: '' });
+    setFormData({ username: '', password: '', role: 'Super Admin' });
   };
 
   return (
@@ -100,6 +100,20 @@ export default function Auth() {
                 </button>
               </div>
             </div>
+
+            {!isLoginView && (
+              <div>
+                <label className="block text-slate-400 font-medium mb-1.5 text-sm">Account Access Role *</label>
+                <select
+                  value={formData.role || 'Super Admin'}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:border-blue-600 transition-colors font-semibold cursor-pointer"
+                >
+                  <option value="Super Admin">Super Admin (Full Access & HR Control)</option>
+                  <option value="Admin">Admin (Admissions & Financial Ledger Console)</option>
+                </select>
+              </div>
+            )}
 
             <button
               type="submit"
