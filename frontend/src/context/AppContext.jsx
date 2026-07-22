@@ -69,8 +69,19 @@ export const AppProvider = ({ children }) => {
 
   const [users, setUsers] = useState(() => {
     const saved = localStorage.getItem('agy_users');
-    return saved ? JSON.parse(saved) : [
-      { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000 }
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.length === 0) {
+        return [
+          { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000 },
+          { _id: 'admin1', username: 'admin123', password: 'password123', name: 'Accounts Manager', email: 'finance@academy.com', role: 'Admin', department: 'Finance & HR', designation: 'Accounts Manager', salary: 60000 }
+        ];
+      }
+      return parsed;
+    }
+    return [
+      { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000 },
+      { _id: 'admin1', username: 'admin123', password: 'password123', name: 'Accounts Manager', email: 'finance@academy.com', role: 'Admin', department: 'Finance & HR', designation: 'Accounts Manager', salary: 60000 }
     ];
   });
 

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import logo from '../assets/logo.png';
-import { ArrowRight, UserPlus, LogIn, AlertCircle } from 'lucide-react';
+import { ArrowRight, UserPlus, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth() {
   const { login, register } = useApp();
   const [isLoginView, setIsLoginView] = useState(true);
   const [formData, setFormData] = useState({ username: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = (e) => {
@@ -76,14 +77,28 @@ export default function Auth() {
             </div>
             <div>
               <label className="block text-slate-400 font-medium mb-1.5 text-sm">Password</label>
-              <input
-                type="password"
-                required
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:border-blue-600 transition-colors"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-4 pr-11 py-3 text-slate-900 focus:outline-none focus:border-blue-600 transition-colors"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1.5 focus:outline-none cursor-pointer"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <button
@@ -95,7 +110,29 @@ export default function Auth() {
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-slate-800/60 text-center">
+          {isLoginView && (
+            <div className="mt-5 p-3.5 bg-slate-100 border border-slate-200 rounded-xl space-y-2 text-xs">
+              <p className="font-bold text-slate-700">Quick Demo Logins (Click to Fill):</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ username: 'admin', password: 'password' })}
+                  className="bg-blue-600/15 hover:bg-blue-600 text-blue-700 hover:text-white font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer border border-blue-500/20"
+                >
+                  Super Admin (admin / password)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ username: 'finance@academy.com', password: 'password123' })}
+                  className="bg-emerald-600/15 hover:bg-emerald-600 text-emerald-700 hover:text-white font-semibold px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer border border-emerald-500/20"
+                >
+                  Admin (finance@academy.com)
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 pt-5 border-t border-slate-200 text-center">
             <p className="text-sm text-slate-400">
               {isLoginView ? "Don't have an account?" : "Already have an account?"}
               <button

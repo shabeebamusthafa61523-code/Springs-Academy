@@ -464,17 +464,26 @@ export default function App() {
     imgElement.src = cropImageSrc;
     imgElement.onload = () => {
       const canvas = document.createElement('canvas');
-      const outWidth = cropAspect === 1 ? 400 : 600;
-      const outHeight = cropAspect === 1 ? 400 : 450;
+
+      let cropW = 160;
+      let cropH = 160;
+      let outWidth = 400;
+      let outHeight = 400;
+
+      if (Math.abs(cropAspect - 4/3) < 0.05) {
+        cropW = 200; cropH = 150; outWidth = 600; outHeight = 450;
+      } else if (Math.abs(cropAspect - 3/4) < 0.05) {
+        cropW = 135; cropH = 180; outWidth = 450; outHeight = 600;
+      } else if (Math.abs(cropAspect - 16/9) < 0.05) {
+        cropW = 220; cropH = 124; outWidth = 640; outHeight = 360;
+      }
+
       canvas.width = outWidth;
       canvas.height = outHeight;
       const ctx = canvas.getContext('2d');
 
       const viewWidth = 320;
       const viewHeight = 256;
-
-      const cropW = cropAspect === 1 ? 160 : cropAspect === 4/3 ? 200 : 135;
-      const cropH = cropAspect === 1 ? 160 : cropAspect === 4/3 ? 150 : 180;
 
       const imgW = imgElement.naturalWidth;
       const imgH = imgElement.naturalHeight;
@@ -3856,10 +3865,53 @@ export default function App() {
             <div 
               className={`absolute inset-0 m-auto border-2 border-dashed border-blue-500/80 pointer-events-none rounded-lg bg-transparent shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]`}
               style={{
-                width: cropAspect === 1 ? '160px' : cropAspect === 4/3 ? '200px' : '135px',
-                height: cropAspect === 1 ? '160px' : cropAspect === 4/3 ? '150px' : '180px',
+                width: Math.abs(cropAspect - 1) < 0.05 ? '160px' : Math.abs(cropAspect - 4/3) < 0.05 ? '200px' : Math.abs(cropAspect - 3/4) < 0.05 ? '135px' : '220px',
+                height: Math.abs(cropAspect - 1) < 0.05 ? '160px' : Math.abs(cropAspect - 4/3) < 0.05 ? '150px' : Math.abs(cropAspect - 3/4) < 0.05 ? '180px' : '124px',
               }}
             />
+          </div>
+
+          {/* Select Aspect Ratio / Size */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Select Crop Ratio / Size</label>
+            <div className="grid grid-cols-4 gap-2">
+              <button
+                type="button"
+                onClick={() => setCropAspect(1)}
+                className={`py-2 px-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-center ${
+                  Math.abs(cropAspect - 1) < 0.05 ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-sm' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                Square (1:1)
+              </button>
+              <button
+                type="button"
+                onClick={() => setCropAspect(4/3)}
+                className={`py-2 px-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-center ${
+                  Math.abs(cropAspect - 4/3) < 0.05 ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-sm' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                ID Card (4:3)
+              </button>
+              <button
+                type="button"
+                onClick={() => setCropAspect(3/4)}
+                className={`py-2 px-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-center ${
+                  Math.abs(cropAspect - 3/4) < 0.05 ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-sm' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                Portrait (3:4)
+              </button>
+              <button
+                type="button"
+                onClick={() => setCropAspect(16/9)}
+                className={`py-2 px-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer text-center ${
+                  Math.abs(cropAspect - 16/9) < 0.05 ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-sm' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                Wide (16:9)
+              </button>
+            </div>
           </div>
 
           {/* Zoom Slider Control */}
