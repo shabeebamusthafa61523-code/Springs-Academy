@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import logo from '../assets/logo.png';
+import toast from 'react-hot-toast';
 import { ArrowRight, UserPlus, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function Auth() {
@@ -25,9 +26,14 @@ export default function Auth() {
         setError('Invalid username or password.');
       }
     } else {
-      const success = register(formData.username, formData.password, formData.role || 'Super Admin');
-      if (!success) {
+      const registeredUser = register(formData.username, formData.password, formData.role || 'Super Admin');
+      if (!registeredUser) {
         setError('Username already exists. Please choose another.');
+      } else {
+        // Autofill registered credentials, switch to login view, and show success toast
+        setIsLoginView(true);
+        setError('');
+        toast.success(`Registered successfully! Credentials pre-filled for ${registeredUser.username}`);
       }
     }
   };

@@ -173,8 +173,7 @@ export const AppProvider = ({ children }) => {
       salary: role === 'Super Admin' ? 120000 : 60000
     };
     setUsers(prev => [...prev, newUser]);
-    setCurrentUser(newUser);
-    return true;
+    return newUser;
   };
 
   const logout = () => {
