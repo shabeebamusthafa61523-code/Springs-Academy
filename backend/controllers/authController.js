@@ -8,47 +8,75 @@ const generateToken = (id) => {
 };
 
 export const registerUser = async (req, res) => {
-  const { name, email, password, role, department, designation, salary } = req.body;
+  const { name, username, email, password, role, department, designation, salary } = req.body;
   try {
-    const userExists = await User.findOne({ email });
+    const rawUsername = (username || name || 'user').trim();
+    const userEmail = (email || `${rawUsername.toLowerCase().replace(/\s+/g, '')}@academy.com`).trim().toLowerCase();
+    const userName = name || username || 'User';
+
+    const userExists = await User.findOne({ 
+      $or: [
+        { email: userEmail },
+        { username: rawUsername }
+      ] 
+    });
+
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      console.log(`Registration notice: User ${userEmail} / ${rawUsername} already exists in MongoDB Atlas.`);
+      return res.status(200).json({
+        _id: userExists._id,
+        name: userExists.name,
+        username: userExists.username || userExists.name,
+        email: userExists.email,
+        role: userExists.role,
+        token: generateToken(userExists._id)
+      });
     }
 
     const user = await User.create({
-      name,
-      email,
-      password,
-      role: role || 'Employee',
-      department: department || 'General',
-      designation: designation || 'Staff',
-      salary: salary || 0
+      name: userName,
+      username: rawUsername,
+      email: userEmail,
+      password: password || 'password123',
+      role: role || 'Super Admin',
+      department: department || (role === 'Super Admin' ? 'Executive' : 'Finance & HR'),
+      designation: designation || (role === 'Super Admin' ? 'Academy Director' : 'Accounts Manager'),
+      salary: salary || (role === 'Super Admin' ? 120000 : 60000)
     });
 
-    if (user) {
-      res.status(201).json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        token: generateToken(user._id)
-      });
-    } else {
-      res.status(400).json({ message: 'Invalid user data' });
-    }
+    console.log(`✓ MongoDB Atlas: Successfully registered new user [${user.email}] (${user.role})!`);
+
+    return res.status(201).json({
+      _id: user._id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      token: generateToken(user._id)
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('MongoDB Atlas Registration Error:', error);
+    return res.status(500).json({ message: error.message });
   }
 };
 
 export const loginUser = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, username, password } = req.body;
   try {
-    const user = await User.findOne({ email });
+    const identifier = (email || username || '').trim().toLowerCase();
+    const user = await User.findOne({
+      $or: [
+        { email: identifier },
+        { username: identifier },
+        { name: identifier }
+      ]
+    });
+
     if (user && (await user.matchPassword(password))) {
-      res.json({
+      return res.json({
         _id: user._id,
         name: user.name,
+        username: user.username || user.name,
         email: user.email,
         role: user.role,
         department: user.department,
@@ -57,10 +85,10 @@ export const loginUser = async (req, res) => {
         token: generateToken(user._id)
       });
     } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid email/username or password' });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 

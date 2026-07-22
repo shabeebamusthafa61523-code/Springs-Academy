@@ -161,26 +161,29 @@ export const AppProvider = ({ children }) => {
     if (users.find(u => u.username && u.username.toLowerCase() === cleanUsername.toLowerCase())) {
       return false; // Username exists
     }
+
+    const userEmail = `${cleanUsername.toLowerCase().replace(/\s+/g, '')}@academy.com`;
     const newUser = {
       _id: 'u_' + Math.random().toString(36).substr(2, 9),
       username: cleanUsername,
-      password,
       name: cleanUsername,
-      email: `${cleanUsername.toLowerCase()}@academy.com`,
+      email: userEmail,
+      password,
       role: role || 'Super Admin',
       department: role === 'Super Admin' ? 'Executive' : 'Finance & HR',
       designation: role === 'Super Admin' ? 'Academy Director' : 'Accounts Manager',
       salary: role === 'Super Admin' ? 120000 : 60000
     };
 
-    // Live MongoDB Atlas Sync via Render API
+    // Live MongoDB Atlas Document Creation via Render API
     try {
-      await fetch(`${API_URL}/api/auth/register`, {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: cleanUsername,
-          email: `${cleanUsername.toLowerCase()}@academy.com`,
+          username: cleanUsername,
+          email: userEmail,
           password,
           role: role || 'Super Admin',
           department: newUser.department,
@@ -188,6 +191,10 @@ export const AppProvider = ({ children }) => {
           salary: newUser.salary
         })
       });
+      const data = await res.json();
+      if (data && data._id) {
+        newUser._id = data._id;
+      }
     } catch (err) {
       console.warn("MongoDB Cloud Sync Warning:", err);
     }
