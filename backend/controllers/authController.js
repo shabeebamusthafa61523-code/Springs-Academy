@@ -26,13 +26,8 @@ export const registerUser = async (req, res) => {
 
     if (userExists) {
       console.log(`Registration notice: User ${userEmail} / ${rawUsername} already exists in MongoDB Atlas.`);
-      return res.status(200).json({
-        _id: userExists._id,
-        name: userExists.name,
-        username: userExists.username || userExists.name,
-        email: userExists.email,
-        role: userExists.role,
-        token: generateToken(userExists._id)
+      return res.status(400).json({
+        message: `Username '${rawUsername}' or email '${userEmail}' already exists. Please choose a different username or sign in.`
       });
     }
 

@@ -26,14 +26,16 @@ export default function Auth() {
         setError('Invalid username or password.');
       }
     } else {
-      const registeredUser = await register(formData.username, formData.password, formData.role || 'Super Admin');
-      if (!registeredUser) {
-        setError('Username already exists. Please choose another.');
+      const res = await register(formData.username, formData.password, formData.role || 'Super Admin');
+      if (res && res.error) {
+        setError(res.error);
+      } else if (!res) {
+        setError('Registration failed. Please choose a different username.');
       } else {
         // Autofill registered credentials, switch to login view, and show success toast
         setIsLoginView(true);
         setError('');
-        toast.success(`Registered successfully! Credentials pre-filled for ${registeredUser.username}`);
+        toast.success(`Registered successfully! Credentials pre-filled for ${res.username}`);
       }
     }
   };

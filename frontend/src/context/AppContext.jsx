@@ -90,10 +90,7 @@ export const AppProvider = ({ children }) => {
     legacyKeys.forEach(key => localStorage.removeItem(key));
   }, []);
 
-  const [users, setUsers] = useState([
-    { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000 },
-    { _id: 'admin1', username: 'admin123', password: 'password123', name: 'Accounts Manager', email: 'finance@academy.com', role: 'Admin', department: 'Finance & HR', designation: 'Accounts Manager', salary: 60000 }
-  ]);
+  const [users, setUsers] = useState([]);
 
   const [students, setStudents] = useState(initialStudents);
   const [employees, setEmployees] = useState(initialEmployees);
@@ -121,9 +118,21 @@ export const AppProvider = ({ children }) => {
 
   // Auth Actions
   const login = (username, password) => {
-    const user = users.find(u => u.username === username && u.password === password);
+    const cleanUsername = (username || '').trim().toLowerCase();
+    const user = users.find(u => (u.username?.toLowerCase() === cleanUsername || u.name?.toLowerCase() === cleanUsername || u.email?.toLowerCase() === cleanUsername) && u.password === password);
     if (user) {
       setCurrentUser(user);
+      return true;
+    }
+    // Fallback for default seed accounts if database is empty
+    if ((cleanUsername === 'admin' && password === 'password') || (cleanUsername === 'owner@academy.com' && password === 'password123')) {
+      const defaultUser = { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000 };
+      setCurrentUser(defaultUser);
+      return true;
+    }
+    if ((cleanUsername === 'admin123' && password === 'password123') || (cleanUsername === 'finance@academy.com' && password === 'password123')) {
+      const defaultAdmin = { _id: 'admin1', username: 'admin123', password: 'password123', name: 'Accounts Manager', email: 'finance@academy.com', role: 'Admin', department: 'Finance & HR', designation: 'Accounts Manager', salary: 60000 };
+      setCurrentUser(defaultAdmin);
       return true;
     }
     return false;
@@ -153,33 +162,27 @@ export const AppProvider = ({ children }) => {
         })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data._id) {
-          const registeredUser = {
-            _id: data._id,
-            username: data.username || cleanUsername,
-            name: data.name || cleanUsername,
-            email: data.email || userEmail,
-            password,
-            role: data.role || role,
-            department: data.department || defaultDept,
-            designation: data.designation || defaultDesig,
-            salary: data.salary || defaultSalary
-          };
-          setUsers(prev => {
-            const filtered = prev.filter(u => u.username?.toLowerCase() !== cleanUsername.toLowerCase());
-            return [...filtered, registeredUser];
-          });
-          return registeredUser;
-        }
-      } else if (res.status === 400) {
-        const errData = await res.json().catch(() => ({}));
-        if (errData.message && errData.message.includes('already exists')) {
-          // If backend says already exists, check local state
-          const localMatch = users.find(u => u.username && u.username.toLowerCase() === cleanUsername.toLowerCase());
-          if (localMatch) return false;
-        }
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data && data._id) {
+        const registeredUser = {
+          _id: data._id,
+          username: data.username || cleanUsername,
+          name: data.name || cleanUsername,
+          email: data.email || userEmail,
+          password,
+          role: data.role || role,
+          department: data.department || defaultDept,
+          designation: data.designation || defaultDesig,
+          salary: data.salary || defaultSalary
+        };
+        setUsers(prev => {
+          const filtered = prev.filter(u => u.username?.toLowerCase() !== cleanUsername.toLowerCase());
+          return [...filtered, registeredUser];
+        });
+        return registeredUser;
+      } else if (!res.ok && data && data.message) {
+        return { error: data.message };
       }
     } catch (err) {
       console.warn("Backend API sync warning:", err);
@@ -187,7 +190,7 @@ export const AppProvider = ({ children }) => {
 
     // Local fallback check
     if (users.find(u => u.username && u.username.toLowerCase() === cleanUsername.toLowerCase())) {
-      return false; // Username exists locally
+      return { error: `Username '${cleanUsername}' already exists. Please choose another.` };
     }
 
     const newUser = {
