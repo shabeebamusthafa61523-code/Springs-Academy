@@ -14,10 +14,13 @@ export const registerUser = async (req, res) => {
     const userEmail = (email || `${rawUsername.toLowerCase().replace(/\s+/g, '')}@academy.com`).trim().toLowerCase();
     const userName = name || username || 'User';
 
+    const safeEmailRegex = new RegExp(`^${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    const safeUsernameRegex = new RegExp(`^${rawUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
     const userExists = await User.findOne({ 
       $or: [
-        { email: userEmail },
-        { username: rawUsername }
+        { email: safeEmailRegex },
+        { username: safeUsernameRegex }
       ] 
     });
 
@@ -55,6 +58,35 @@ export const registerUser = async (req, res) => {
       token: generateToken(user._id)
     });
   } catch (error) {
+    if (error.code === 11000) {
+      console.log(`Notice: Duplicate key caught in MongoDB Atlas for registration (${error.message}). Fetching existing user.`);
+      try {
+        const rawUsername = (username || name || 'user').trim();
+        const userEmail = (email || `${rawUsername.toLowerCase().replace(/\s+/g, '')}@academy.com`).trim().toLowerCase();
+        const safeEmailRegex = new RegExp(`^${userEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+        const safeUsernameRegex = new RegExp(`^${rawUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+        const existingUser = await User.findOne({
+          $or: [
+            { email: safeEmailRegex },
+            { username: safeUsernameRegex }
+          ]
+        });
+
+        if (existingUser) {
+          return res.status(200).json({
+            _id: existingUser._id,
+            name: existingUser.name,
+            username: existingUser.username || existingUser.name,
+            email: existingUser.email,
+            role: existingUser.role,
+            token: generateToken(existingUser._id)
+          });
+        }
+      } catch (innerErr) {
+        console.error("Error retrieving existing user after duplicate key:", innerErr);
+      }
+    }
     console.error('MongoDB Atlas Registration Error:', error);
     return res.status(500).json({ message: error.message });
   }
@@ -63,12 +95,14 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
   const { email, username, password } = req.body;
   try {
-    const identifier = (email || username || '').trim().toLowerCase();
+    const identifier = (email || username || '').trim();
+    const safeRegex = new RegExp(`^${identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
     const user = await User.findOne({
       $or: [
-        { email: identifier },
-        { username: identifier },
-        { name: identifier }
+        { email: safeRegex },
+        { username: safeRegex },
+        { name: safeRegex }
       ]
     });
 
