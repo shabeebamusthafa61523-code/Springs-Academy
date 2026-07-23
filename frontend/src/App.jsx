@@ -213,8 +213,8 @@ export default function App() {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 500000) { // 500KB limit
-        toast.error("File is too large. Please select an image under 500KB.");
+      if (file.size > 5000000) { // 5MB limit
+        toast.error("File is too large. Please select an image under 5MB.");
         return;
       }
       const reader = new FileReader();
@@ -228,8 +228,8 @@ export default function App() {
   const handleEditImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 500000) {
-        toast.error("File is too large. Please select an image under 500KB.");
+      if (file.size > 5000000) {
+        toast.error("File is too large. Please select an image under 5MB.");
         return;
       }
       const reader = new FileReader();
@@ -758,8 +758,8 @@ export default function App() {
   const handleFileChangeForCrop = (e, aspect, callback) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 2000000) {
-        toast.error("File is too large. Please select an image under 2MB.");
+      if (file.size > 5000000) {
+        toast.error("File is too large. Please select an image under 5MB.");
         e.target.value = '';
         return;
       }
@@ -3867,8 +3867,8 @@ export default function App() {
                   onChange={(e) => {
                     const file = e.target.files[0];
                     if (file) {
-                      if (file.size > 500000) {
-                        toast.error("File is too large. Please select an image under 500KB.");
+                      if (file.size > 5000000) {
+                        toast.error("File is too large. Please select an image under 5MB.");
                         e.target.value = '';
                         return;
                       }
@@ -4106,8 +4106,8 @@ export default function App() {
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) {
-                  if (file.size > 500000) {
-                    toast.error("File is too large. Please select an image under 500KB.");
+                  if (file.size > 5000000) {
+                    toast.error("File is too large. Please select an image under 5MB.");
                     e.target.value = '';
                     return;
                   }
@@ -4263,8 +4263,8 @@ export default function App() {
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) {
-                  if (file.size > 500000) {
-                    toast.error("File is too large. Please select an image under 500KB.");
+                  if (file.size > 5000000) {
+                    toast.error("File is too large. Please select an image under 5MB.");
                     e.target.value = '';
                     return;
                   }
