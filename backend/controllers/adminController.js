@@ -87,3 +87,43 @@ export const reviewExpenseClaim = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Update / Edit Expense Claim (Super Admin / Admin)
+export const updateExpenseClaim = async (req, res) => {
+  const { claimId } = req.params;
+  const { title, amount, date, description, status } = req.body;
+
+  try {
+    const claim = await Expense.findById(claimId);
+    if (!claim) {
+      return res.status(404).json({ message: 'Expense claim not found' });
+    }
+
+    if (title !== undefined) claim.title = title;
+    if (amount !== undefined) claim.amount = amount;
+    if (date !== undefined) claim.date = date;
+    if (description !== undefined) claim.description = description;
+    if (status !== undefined) claim.status = status;
+
+    await claim.save();
+    res.json({ message: 'Expense claim updated successfully', claim });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete Expense Claim (Super Admin / Admin)
+export const deleteExpenseClaim = async (req, res) => {
+  const { claimId } = req.params;
+
+  try {
+    const claim = await Expense.findByIdAndDelete(claimId);
+    if (!claim) {
+      return res.status(404).json({ message: 'Expense claim not found' });
+    }
+    res.json({ message: 'Expense claim deleted successfully', claimId });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+

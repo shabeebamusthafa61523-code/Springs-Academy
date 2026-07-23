@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from './context/AppContext';
 import jsPDF from 'jspdf';
 import logo from './assets/logo.png';
+import logo2 from './assets/logo2.png';
 import toast, { Toaster } from 'react-hot-toast';
 import Auth from './components/Auth';
 import { BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -36,7 +37,12 @@ import {
   Edit,
   Trash2,
   LayoutGrid,
-  List
+  List,
+  Search,
+  Filter,
+  ArrowUpDown,
+  RefreshCw,
+  Clock
 } from 'lucide-react';
 
 export default function App() {
@@ -57,6 +63,8 @@ export default function App() {
     deleteEmployee,
     expenses, 
     fileExpenseClaim, 
+    editExpenseClaim,
+    deleteExpenseClaim,
     reviewExpense,
     courses,
     addCourse,
@@ -158,6 +166,20 @@ export default function App() {
   const [editingCourseObj, setEditingCourseObj] = useState(null);
   const [courseForm, setCourseForm] = useState({ name: '', duration: '6 Months', fee: '', details: '' });
 
+  // Center Expense Claims Filtering, Sorting & Editing States
+  const [expenseSearch, setExpenseSearch] = useState('');
+  const [expenseStatusFilter, setExpenseStatusFilter] = useState('All'); // 'All', 'Pending', 'Approved', 'Rejected'
+  const [expenseFromDate, setExpenseFromDate] = useState('');
+  const [expenseToDate, setExpenseToDate] = useState('');
+  const [expenseSortBy, setExpenseSortBy] = useState('date-desc'); // 'date-desc', 'date-asc', 'amount-desc', 'amount-asc', 'title'
+
+  const [isExpenseEditModalOpen, setIsExpenseEditModalOpen] = useState(false);
+  const [editingExpenseObj, setEditingExpenseObj] = useState(null);
+  const [expenseEditForm, setExpenseEditForm] = useState({ title: '', amount: '', date: '', status: 'Pending', description: '' });
+
+  const [isExpenseDeleteModalOpen, setIsExpenseDeleteModalOpen] = useState(false);
+  const [deletingExpenseObj, setDeletingExpenseObj] = useState(null);
+
   // Input states
   const [studentForm, setStudentForm] = useState({ 
     name: '', email: '', dob: '', customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, 
@@ -236,6 +258,176 @@ export default function App() {
     toast.success("Expense claim filed for approval.");
   };
 
+  const handleOpenEditExpenseModal = (exp) => {
+    setEditingExpenseObj(exp);
+    setExpenseEditForm({
+      title: exp.title || '',
+      amount: exp.amount || '',
+      date: exp.date || new Date().toISOString().split('T')[0],
+      status: exp.status || 'Pending',
+      description: exp.description || ''
+    });
+    setIsExpenseEditModalOpen(true);
+  };
+
+  const handleExpenseEditSubmit = (e) => {
+    e.preventDefault();
+    if (!editingExpenseObj || !expenseEditForm.title || !expenseEditForm.amount) return;
+    editExpenseClaim(editingExpenseObj._id, expenseEditForm);
+    setIsExpenseEditModalOpen(false);
+    setEditingExpenseObj(null);
+    toast.success("Expense claim updated successfully!");
+  };
+
+  const handleOpenDeleteExpenseModal = (exp) => {
+    setDeletingExpenseObj(exp);
+    setIsExpenseDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteExpense = () => {
+    if (!deletingExpenseObj) return;
+    deleteExpenseClaim(deletingExpenseObj._id);
+    setIsExpenseDeleteModalOpen(false);
+    setDeletingExpenseObj(null);
+    toast.success("Expense claim deleted successfully!");
+  };
+
+  const clearExpenseFilters = () => {
+    setExpenseSearch('');
+    setExpenseStatusFilter('All');
+    setExpenseFromDate('');
+    setExpenseToDate('');
+    setExpenseSortBy('date-desc');
+    toast.success("Expense filters cleared.");
+  };
+
+  const generateExpensePDF = async (expensesList, fromDate, toDate) => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const logoDataUrl = await getLogoDataUrl();
+    
+    // Header Banner
+    doc.setFillColor(15, 23, 42); // slate-900
+    doc.rect(0, 0, 210, 42, 'F');
+    
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'PNG', 15, 8, 38, 16);
+      } catch (e) {
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(20);
+        doc.text("SPRINGS ACADEMY", 15, 18);
+      }
+    } else {
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(20);
+      doc.text("SPRINGS ACADEMY", 15, 18);
+    }
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(148, 163, 184); // slate-400
+    doc.text("Center Operational Expense Claims Audit Report", 15, 28);
+    
+    const dateRangeStr = (fromDate || toDate) ? `Period: ${fromDate || 'Beginning'} to ${toDate || 'Present'}` : 'Period: All Time';
+    doc.text(`${dateRangeStr}  |  Generated: ${new Date().toLocaleDateString()}`, 15, 34);
+
+    // Summary Box
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(15, 48, 180, 20, 2, 2, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(15, 48, 180, 20, 2, 2, 'S');
+
+    const totalCount = expensesList.length;
+    const totalAmount = expensesList.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+    const avgAmount = totalCount ? Math.round(totalAmount / totalCount) : 0;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`Total Expenses: ${totalCount}`, 20, 60);
+    doc.text(`Total Amount: Rs. ${totalAmount.toLocaleString()}`, 75, 60);
+    doc.text(`Average Expense: Rs. ${avgAmount.toLocaleString()}`, 135, 60);
+
+    // Table Header
+    let startY = 78;
+    doc.setFillColor(30, 41, 59); // slate-800
+    doc.rect(15, startY - 5, 180, 8, 'F');
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    
+    doc.text("Date", 18, startY);
+    doc.text("Expense Title & Particulars", 45, startY);
+    doc.text("Logged By", 125, startY);
+    doc.text("Amount (Rs.)", 175, startY);
+    
+    let currentY = startY + 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    
+    expensesList.forEach((exp, idx) => {
+      if (currentY > 275) {
+        doc.addPage();
+        currentY = 20;
+        doc.setFillColor(30, 41, 59);
+        doc.rect(15, currentY - 5, 180, 8, 'F');
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(255, 255, 255);
+        doc.text("Date", 18, currentY);
+        doc.text("Expense Title & Particulars", 45, currentY);
+        doc.text("Logged By", 125, currentY);
+        doc.text("Amount (Rs.)", 175, currentY);
+        currentY += 8;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+      }
+
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, currentY - 4, 180, 10, 'F');
+      }
+
+      doc.setTextColor(51, 65, 85);
+      doc.text(exp.date || 'N/A', 18, currentY);
+      
+      const cleanTitle = (exp.title || '').length > 40 ? (exp.title || '').substring(0, 37) + '...' : exp.title;
+      doc.setFont("helvetica", "bold");
+      doc.text(cleanTitle || 'Untitled Expense', 45, currentY);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      const claimedByName = exp.employeeId?.name || 'Staff';
+      const dept = exp.employeeId?.department ? `(${exp.employeeId.department})` : '';
+      doc.text(`${claimedByName} ${dept}`.substring(0, 24), 125, currentY);
+
+      doc.setTextColor(15, 23, 42);
+      doc.text((exp.amount || 0).toLocaleString(), 175, currentY);
+
+      doc.setDrawColor(241, 245, 249);
+      doc.line(15, currentY + 4, 195, currentY + 4);
+
+      currentY += 10;
+    });
+
+    if (currentY > 270) {
+      doc.addPage();
+      currentY = 20;
+    }
+    doc.setFillColor(241, 245, 249);
+    doc.rect(15, currentY - 2, 180, 10, 'F');
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text("GRAND TOTAL", 45, currentY + 4);
+    doc.text(`Rs. ${totalAmount.toLocaleString()}`, 175, currentY + 4);
+
+    doc.save(`Center_Expense_Claims_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success("Center Expense Claims PDF report downloaded!");
+  };
+
   const handleHRUpdateSubmit = (e) => {
     e.preventDefault();
     if (!hrForm.employeeId) return;
@@ -298,22 +490,34 @@ export default function App() {
     toast.success("Payment details corrected & ledger updated!");
   };
 
-  const generateStudentDirectoryPDF = () => {
+  const generateStudentDirectoryPDF = async () => {
     const doc = new jsPDF('p', 'mm', 'a4');
+    const logoDataUrl = await getLogoDataUrl();
     
     doc.setFillColor(15, 23, 42);
     doc.rect(0, 0, 210, 40, 'F');
     
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("ACADEMY OFFICE SYSTEM", 15, 18);
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'PNG', 15, 6, 38, 16);
+      } catch (e) {
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.text("SPRINGS ACADEMY", 15, 18);
+      }
+    } else {
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.text("SPRINGS ACADEMY", 15, 18);
+    }
     
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(148, 163, 184);
-    doc.text("Student Admissions Registry Directory Report", 15, 26);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total Students: ${visibleStudents.length}`, 15, 32);
+    doc.text("Student Admissions Registry Directory Report", 15, 27);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total Students: ${visibleStudents.length}`, 15, 33);
 
     let startY = 50;
     doc.setFont("helvetica", "bold");
@@ -370,22 +574,34 @@ export default function App() {
     toast.success("Student directory PDF downloaded successfully!");
   };
 
-  const generatePaymentActivityPDF = () => {
+  const generatePaymentActivityPDF = async () => {
     const doc = new jsPDF('p', 'mm', 'a4');
+    const logoDataUrl = await getLogoDataUrl();
     
     doc.setFillColor(15, 23, 42);
     doc.rect(0, 0, 210, 40, 'F');
     
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("ACADEMY OFFICE SYSTEM", 15, 18);
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'PNG', 15, 6, 38, 16);
+      } catch (e) {
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.text("SPRINGS ACADEMY", 15, 18);
+      }
+    } else {
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.text("SPRINGS ACADEMY", 15, 18);
+    }
     
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(148, 163, 184);
-    doc.text("Payment Activity Feed & Transaction Ledger Report", 15, 26);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total Transactions: ${allPayments.length}`, 15, 32);
+    doc.text("Payment Activity Feed & Transaction Ledger Report", 15, 27);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total Transactions: ${allPayments.length}`, 15, 33);
     
     let startY = 50;
     doc.setFont("helvetica", "bold");
@@ -448,22 +664,34 @@ export default function App() {
     toast.success("Payment activity report downloaded successfully!");
   };
 
-  const generateFeeCollectionTerminalPDF = (feeStudentsList) => {
+  const generateFeeCollectionTerminalPDF = async (feeStudentsList) => {
     const doc = new jsPDF('p', 'mm', 'a4');
+    const logoDataUrl = await getLogoDataUrl();
     
     doc.setFillColor(15, 23, 42);
     doc.rect(0, 0, 210, 40, 'F');
     
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("SPRINGS ACADEMY", 15, 18);
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'PNG', 15, 6, 38, 16);
+      } catch (e) {
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.text("SPRINGS ACADEMY", 15, 18);
+      }
+    } else {
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.text("SPRINGS ACADEMY", 15, 18);
+    }
     
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(148, 163, 184);
-    doc.text("Fee Collection Terminal - Student Ledger & Outstanding Status", 15, 26);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total Records: ${(feeStudentsList || []).length}`, 15, 32);
+    doc.text("Fee Collection Terminal - Student Ledger & Outstanding Status", 15, 27);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}  |  Total Records: ${(feeStudentsList || []).length}`, 15, 33);
     
     let startY = 50;
     doc.setFont("helvetica", "bold");
@@ -655,11 +883,38 @@ export default function App() {
     });
   };
 
+  let cachedLogo2DataUrl = null;
+  const getLogo2DataUrl = () => {
+    return new Promise((resolve) => {
+      if (cachedLogo2DataUrl) {
+        return resolve(cachedLogo2DataUrl);
+      }
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/png');
+          cachedLogo2DataUrl = dataUrl;
+          resolve(dataUrl);
+        } catch (err) {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = logo2;
+    });
+  };
+
   const generatePDFInvoice = async (student, payment) => {
     if (!student || !payment) return;
 
     const doc = new jsPDF('p', 'mm', 'a4');
-    const logoDataUrl = await getLogoDataUrl();
+    const logo2DataUrl = await getLogo2DataUrl();
 
     // Color palette constants
     const primaryDark = [15, 23, 42];    // Slate 900
@@ -670,27 +925,13 @@ export default function App() {
     const borderColor = [226, 232, 240]; // Slate 200
 
     // Header section: Logo & Title
-    if (logoDataUrl) {
+    if (logo2DataUrl) {
       try {
-        doc.addImage(logoDataUrl, 'PNG', 15, 12, 43, 20);
+        doc.addImage(logo2DataUrl, 'PNG', 15, 10, 43, 20);
       } catch (e) {
         console.warn("PDF Image rendering error:", e);
       }
     }
-
-    // doc.setFont("helvetica", "bold");
-    // doc.setFontSize(16);
-    // doc.setTextColor(...primaryDark);
-    // doc.text("SPRINGS ACADEMY", 62, 20);
-
-    // doc.setFont("helvetica", "normal");
-    // doc.setFontSize(9);
-    // doc.setTextColor(...textMuted);
-    // doc.text("Institute of Commerce and Technology", 62, 25.5);
-
-    // doc.setFontSize(8);
-    // doc.setTextColor(148, 163, 184);
-    // doc.text("Technical & Commercial Education Hub | Contact: +91 98765 43210", 62, 30.5);
 
     // Right Side: Receipt Title & Info
     doc.setFont("helvetica", "bold");
@@ -917,7 +1158,7 @@ export default function App() {
       <header className="glass-panel sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row items-center justify-between border-b border-slate-800 shadow-sm bg-white">
         <div className="flex items-center gap-3 mb-4 sm:mb-0">
           <div>
-            <img src={logo} alt="Springs Academy" className="h-15 object-contain" />
+            <img src={theme === 'light' ? logo2 : logo} alt="Springs Academy" className="h-15 object-contain" />
           </div>
         </div>
 
@@ -2547,58 +2788,248 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Claims Approval Console (Admin/Super Admin) */}
-                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-sm font-bold text-white">Pending Center Expense Claims</h3>
-                    <button 
-                      onClick={() => setIsExpenseModalOpen(true)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-500/20 shadow-sm transition-all duration-200 cursor-pointer"
-                    >
-                      Log Center Expense
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {expenses.map(exp => (
-                      <div key={exp._id} className="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 flex flex-col sm:flex-row justify-between sm:items-center gap-4 text-xs">
+                {/* Center Expense Claims Console */}
+                {(() => {
+                  const filteredList = expenses.filter(exp => {
+                    const q = expenseSearch.toLowerCase().trim();
+                    const matchesSearch = !q || 
+                      (exp.title && exp.title.toLowerCase().includes(q)) ||
+                      (exp.description && exp.description.toLowerCase().includes(q)) ||
+                      (exp.employeeId?.name && exp.employeeId.name.toLowerCase().includes(q)) ||
+                      (exp.employeeId?.department && exp.employeeId.department.toLowerCase().includes(q));
+
+                    let matchesFromDate = true;
+                    if (expenseFromDate) {
+                      matchesFromDate = new Date(exp.date) >= new Date(expenseFromDate);
+                    }
+                    let matchesToDate = true;
+                    if (expenseToDate) {
+                      matchesToDate = new Date(exp.date) <= new Date(expenseToDate);
+                    }
+
+                    return matchesSearch && matchesFromDate && matchesToDate;
+                  }).sort((a, b) => {
+                    if (expenseSortBy === 'date-desc') {
+                      return new Date(b.date) - new Date(a.date);
+                    }
+                    if (expenseSortBy === 'date-asc') {
+                      return new Date(a.date) - new Date(b.date);
+                    }
+                    if (expenseSortBy === 'amount-desc') {
+                      return b.amount - a.amount;
+                    }
+                    if (expenseSortBy === 'amount-asc') {
+                      return a.amount - b.amount;
+                    }
+                    if (expenseSortBy === 'title') {
+                      return (a.title || '').localeCompare(b.title || '');
+                    }
+                    return 0;
+                  });
+
+                  const totalFilteredAmount = filteredList.reduce((sum, e) => sum + (e.amount || 0), 0);
+                  const totalAllAmount = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+                  const avgExpense = filteredList.length ? Math.round(totalFilteredAmount / filteredList.length) : 0;
+
+                  return (
+                    <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-6">
+                      
+                      {/* Console Header */}
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-white">{exp.title}</span>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-semibold ${
-                              exp.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-400' : exp.status === 'Rejected' ? 'bg-rose-500/10 text-rose-400' : 'bg-yellow-500/10 text-yellow-400'
-                            }`}>
-                              {exp.status}
+                            <h3 className="text-base font-extrabold text-white">Center Expense Claims</h3>
+                            <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] px-2.5 py-0.5 rounded-full font-bold">
+                              {filteredList.length} {filteredList.length === 1 ? 'Record' : 'Records'}
                             </span>
                           </div>
-                          <p className="text-slate-400 mt-1">{exp.description || 'No description provided.'}</p>
-                          <div className="text-[10px] text-slate-500 mt-2 font-mono">
-                            Claimed by: {exp.employeeId?.name || 'Staff'} ({exp.employeeId?.department}) | Filed: {exp.date}
+                          <p className="text-xs text-slate-400 mt-1">Log center operational expenses, filter by date range, edit or delete records, and download PDF reports.</p>
+                        </div>
+                        
+                        <div className="flex items-center gap-2.5 flex-wrap self-stretch sm:self-auto">
+                          <button 
+                            onClick={() => generateExpensePDF(filteredList, expenseFromDate, expenseToDate)}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-700 shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-1.5"
+                            title="Export Filtered Expense Report as PDF"
+                          >
+                            <Download className="w-3.5 h-3.5 text-blue-400" />
+                            Download PDF
+                          </button>
+                          
+                          <button 
+                            onClick={() => setIsExpenseModalOpen(true)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-xl border border-blue-500/20 shadow-md hover:shadow-blue-500/20 transition-all duration-200 cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Log Center Expense
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* KPI Metric Summary Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                          <div className="text-slate-400 font-medium">Filtered Expenses Sum</div>
+                          <div className="text-xl font-bold text-white mt-1">₹{totalFilteredAmount.toLocaleString()}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5 font-mono">{filteredList.length} expenses in view</div>
+                        </div>
+
+                        <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                          <div className="text-slate-400 font-medium">Total Registered Expenses</div>
+                          <div className="text-xl font-bold text-emerald-400 mt-1">₹{totalAllAmount.toLocaleString()}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5 font-mono">{expenses.length} total entries</div>
+                        </div>
+
+                        <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+                          <div className="text-slate-400 font-medium">Average Expense Value</div>
+                          <div className="text-xl font-bold text-blue-400 mt-1">₹{avgExpense.toLocaleString()}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5 font-mono">Per expense log</div>
+                        </div>
+                      </div>
+
+                      {/* Control Panel: Search, Date Filter, Sorting */}
+                      <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
+                          
+                          {/* Search Input */}
+                          <div className="md:col-span-6 relative">
+                            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                            <input 
+                              type="text"
+                              placeholder="Search title, staff, department..."
+                              value={expenseSearch}
+                              onChange={(e) => setExpenseSearch(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+
+                          {/* Sort By Dropdown */}
+                          <div className="md:col-span-4">
+                            <select
+                              value={expenseSortBy}
+                              onChange={(e) => setExpenseSortBy(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                            >
+                              <option value="date-desc">Sort: Date (Newest First)</option>
+                              <option value="date-asc">Sort: Date (Oldest First)</option>
+                              <option value="amount-desc">Sort: Amount (High to Low)</option>
+                              <option value="amount-asc">Sort: Amount (Low to High)</option>
+                              <option value="title">Sort: Title (A-Z)</option>
+                            </select>
+                          </div>
+
+                          {/* Reset Button */}
+                          <div className="md:col-span-2">
+                            <button
+                              onClick={clearExpenseFilters}
+                              className="w-full h-full bg-slate-900 hover:bg-slate-800 text-slate-300 font-medium px-3 py-2 rounded-lg border border-slate-800 transition-all flex items-center justify-center gap-1.5"
+                              title="Reset all search and date filters"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+                              Clear
+                            </button>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 self-end sm:self-center">
-                          <span className="font-bold text-white text-base">{exp.amount.toLocaleString()}</span>
-                          {exp.status === 'Pending' && (
-                            <div className="flex gap-2">
-                              <button 
-                                onClick={() => reviewExpense(exp._id, 'Approved')}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded px-3 py-1.5 font-bold transition-all text-[10px]"
-                              >
-                                Approve
-                              </button>
-                              <button 
-                                onClick={() => reviewExpense(exp._id, 'Rejected')}
-                                className="bg-rose-600 hover:bg-rose-700 text-white rounded px-3 py-1.5 font-bold transition-all text-[10px]"
-                              >
-                                Reject
-                              </button>
-                            </div>
+                        {/* Date Range Picker (From Date & To Date) */}
+                        <div className="pt-2 border-t border-slate-900 flex flex-col sm:flex-row items-center gap-3 text-xs">
+                          <span className="text-slate-400 font-medium shrink-0 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                            Date Range Filter:
+                          </span>
+                          
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <label className="text-slate-500 text-[11px]">From:</label>
+                            <input 
+                              type="date"
+                              value={expenseFromDate}
+                              onChange={(e) => setExpenseFromDate(e.target.value)}
+                              className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-blue-500 text-xs"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <label className="text-slate-500 text-[11px]">To:</label>
+                            <input 
+                              type="date"
+                              value={expenseToDate}
+                              onChange={(e) => setExpenseToDate(e.target.value)}
+                              className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-blue-500 text-xs"
+                            />
+                          </div>
+
+                          {(expenseFromDate || expenseToDate || expenseSearch) && (
+                            <span className="text-[11px] text-blue-400 font-mono ml-auto">
+                              Active filters applied
+                            </span>
                           )}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
+
+                      {/* Claims List View */}
+                      <div className="space-y-3">
+                        {filteredList.length === 0 ? (
+                          <div className="text-center py-10 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
+                            <Receipt className="w-10 h-10 text-slate-600 mx-auto mb-2 opacity-50" />
+                            <p className="text-slate-300 font-medium text-sm">No expense claims match your search or date criteria.</p>
+                            <p className="text-xs text-slate-500 mt-1">Try clearing your filters or selecting a wider date range.</p>
+                            <button
+                              onClick={clearExpenseFilters}
+                              className="mt-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-blue-500/30 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              Reset Filters
+                            </button>
+                          </div>
+                        ) : (
+                          filteredList.map(exp => (
+                            <div key={exp._id} className="bg-slate-900/80 hover:bg-slate-900 p-4 rounded-xl border border-slate-800/80 flex flex-col sm:flex-row justify-between sm:items-center gap-4 text-xs transition-all duration-150">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-white text-sm">{exp.title}</span>
+                                </div>
+                                <p className="text-slate-400 text-xs">{exp.description || 'No detailed description provided.'}</p>
+                                <div className="text-[11px] text-slate-500 flex items-center gap-3 flex-wrap font-mono pt-1">
+                                  <span>Logged by: <strong className="text-slate-300 font-sans">{exp.employeeId?.name || 'Staff Member'}</strong> ({exp.employeeId?.department || 'General'})</span>
+                                  <span>|</span>
+                                  <span>Date: <strong className="text-slate-300 font-sans">{exp.date}</strong></span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
+                                <div className="text-right">
+                                  <span className="font-extrabold text-white text-base block">₹{exp.amount.toLocaleString()}</span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                                  {/* Edit Button */}
+                                  <button 
+                                    onClick={() => handleOpenEditExpenseModal(exp)}
+                                    className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded transition-all flex items-center gap-1 px-2 py-1 text-[11px]"
+                                    title="Edit Expense Claim"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                    Edit
+                                  </button>
+
+                                  {/* Delete Button */}
+                                  <button 
+                                    onClick={() => handleOpenDeleteExpenseModal(exp)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-all flex items-center gap-1 px-2 py-1 text-[11px]"
+                                    title="Delete Expense Claim"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
               </div>
 
@@ -3990,6 +4421,135 @@ export default function App() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* 5b. Edit Expense Claim Modal */}
+      <Modal 
+        isOpen={isExpenseEditModalOpen} 
+        onClose={() => {
+          setIsExpenseEditModalOpen(false);
+          setEditingExpenseObj(null);
+        }} 
+        title="Edit Center Expense Claim"
+      >
+        <form onSubmit={handleExpenseEditSubmit} className="space-y-4 text-sm">
+          <div>
+            <label className="block text-slate-400 font-medium mb-1">Expense Title *</label>
+            <input 
+              type="text" 
+              required
+              placeholder="Expense title"
+              value={expenseEditForm.title}
+              onChange={(e) => setExpenseEditForm({...expenseEditForm, title: e.target.value})}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-slate-400 font-medium mb-1">Claim Amount (₹) *</label>
+              <input 
+                type="number" 
+                required
+                min="0"
+                step="any"
+                placeholder="Amount"
+                value={expenseEditForm.amount}
+                onChange={(e) => setExpenseEditForm({...expenseEditForm, amount: e.target.value})}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-400 font-medium mb-1">Claim Date *</label>
+              <input 
+                type="date" 
+                required
+                value={expenseEditForm.date}
+                onChange={(e) => setExpenseEditForm({...expenseEditForm, date: e.target.value})}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-slate-400 font-medium mb-1">Description / Particulars</label>
+            <textarea 
+              rows="3"
+              placeholder="Describe the purchase details..."
+              value={expenseEditForm.description}
+              onChange={(e) => setExpenseEditForm({...expenseEditForm, description: e.target.value})}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button 
+              type="button" 
+              onClick={() => {
+                setIsExpenseEditModalOpen(false);
+                setEditingExpenseObj(null);
+              }}
+              className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-5 py-2.5 font-semibold transition-all shadow-md hover:shadow-blue-500/20"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* 5c. Delete Expense Claim Confirmation Modal */}
+      <Modal 
+        isOpen={isExpenseDeleteModalOpen} 
+        onClose={() => {
+          setIsExpenseDeleteModalOpen(false);
+          setDeletingExpenseObj(null);
+        }} 
+        title="Confirm Expense Deletion"
+      >
+        <div className="space-y-4 text-sm">
+          <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-300 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-rose-200">Are you sure you want to delete this expense claim?</p>
+              <p className="text-xs text-rose-300/80 mt-1">This action is permanent and will remove the center expense log from accounting registers.</p>
+            </div>
+          </div>
+
+          {deletingExpenseObj && (
+            <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-1 text-xs text-slate-300 font-mono">
+              <p><span className="text-slate-500">Title:</span> <span className="text-white font-semibold">{deletingExpenseObj.title}</span></p>
+              <p><span className="text-slate-500">Amount:</span> <span className="text-white font-semibold">₹{deletingExpenseObj.amount?.toLocaleString()}</span></p>
+              <p><span className="text-slate-500">Date:</span> {deletingExpenseObj.date}</p>
+              <p><span className="text-slate-500">Status:</span> {deletingExpenseObj.status}</p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button 
+              type="button" 
+              onClick={() => {
+                setIsExpenseDeleteModalOpen(false);
+                setDeletingExpenseObj(null);
+              }}
+              className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              type="button" 
+              onClick={handleConfirmDeleteExpense}
+              className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-5 py-2.5 font-semibold transition-all shadow-md hover:shadow-rose-500/20 flex items-center gap-1.5"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Expense
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* 6. Log Payment Modal */}

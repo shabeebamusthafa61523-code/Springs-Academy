@@ -4,7 +4,9 @@ import {
   updateEmployeeHR,
   submitExpenseClaim,
   getExpenseClaims,
-  reviewExpenseClaim
+  reviewExpenseClaim,
+  updateExpenseClaim,
+  deleteExpenseClaim
 } from '../controllers/adminController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
 
@@ -21,6 +23,8 @@ router.route('/expenses')
   .get(protect, getExpenseClaims);
 
 router.route('/expenses/:claimId')
-  .put(protect, authorize('Super Admin', 'Admin'), reviewExpenseClaim);
+  .put(protect, authorize('Super Admin', 'Admin'), updateExpenseClaim)
+  .delete(protect, authorize('Super Admin', 'Admin'), deleteExpenseClaim);
 
 export default router;
+

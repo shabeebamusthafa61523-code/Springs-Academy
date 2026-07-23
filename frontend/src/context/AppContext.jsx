@@ -549,18 +549,38 @@ export const AppProvider = ({ children }) => {
     const newExpense = {
       _id: 'exp_' + Math.random().toString(36).substr(2, 9),
       employeeId: {
-        _id: currentUser._id,
-        name: currentUser.name,
-        email: currentUser.email,
-        department: currentUser.department
+        _id: currentUser?._id || 'emp_user',
+        name: currentUser?.name || 'Staff Member',
+        email: currentUser?.email || 'staff@academy.com',
+        department: currentUser?.department || 'Operations'
       },
       title: expenseData.title,
       amount: parseFloat(expenseData.amount),
       date: expenseData.date || new Date().toISOString().split('T')[0],
-      status: 'Pending',
+      status: expenseData.status || 'Pending',
       description: expenseData.description || ''
     };
     setExpenses(prev => [...prev, newExpense]);
+  };
+
+  const editExpenseClaim = (expenseId, updatedData) => {
+    setExpenses(prev => prev.map(exp => {
+      if (exp._id === expenseId) {
+        return {
+          ...exp,
+          title: updatedData.title !== undefined ? updatedData.title : exp.title,
+          amount: updatedData.amount !== undefined ? parseFloat(updatedData.amount) : exp.amount,
+          date: updatedData.date !== undefined ? updatedData.date : exp.date,
+          status: updatedData.status !== undefined ? updatedData.status : exp.status,
+          description: updatedData.description !== undefined ? updatedData.description : exp.description,
+        };
+      }
+      return exp;
+    }));
+  };
+
+  const deleteExpenseClaim = (expenseId) => {
+    setExpenses(prev => prev.filter(exp => exp._id !== expenseId));
   };
 
   const reviewExpense = (expenseId, status) => {
@@ -657,6 +677,8 @@ export const AppProvider = ({ children }) => {
       deleteEmployee,
       expenses,
       fileExpenseClaim,
+      editExpenseClaim,
+      deleteExpenseClaim,
       reviewExpense,
       courses,
       addCourse,
