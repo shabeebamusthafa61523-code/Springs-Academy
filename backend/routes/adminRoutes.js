@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getEmployees,
+  createEmployee,
   updateEmployeeHR,
   submitExpenseClaim,
   getExpenseClaims,
@@ -13,7 +14,8 @@ import { protect, authorize } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 router.route('/employees')
-  .get(protect, getEmployees);
+  .get(protect, getEmployees)
+  .post(protect, authorize('Super Admin', 'Admin'), createEmployee);
 
 router.route('/employees/:employeeId')
   .put(protect, authorize('Super Admin', 'Admin'), updateEmployeeHR);

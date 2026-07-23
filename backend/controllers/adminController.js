@@ -11,6 +11,32 @@ export const getEmployees = async (req, res) => {
   }
 };
 
+// Create new staff / employee
+export const createEmployee = async (req, res) => {
+  const { name, email, role, department, designation, salary } = req.body;
+  try {
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+
+    const employee = await User.create({
+      name,
+      username: name.toLowerCase().replace(/\s+/g, ''),
+      email,
+      password: 'password123',
+      role: role || 'Employee',
+      department: department || 'Academic',
+      designation: designation || 'Staff',
+      salary: salary || 0
+    });
+
+    res.status(201).json(employee);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Update Employee HR Data (Super Admin / Admin)
 export const updateEmployeeHR = async (req, res) => {
   const { employeeId } = req.params;

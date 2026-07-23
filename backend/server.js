@@ -9,6 +9,8 @@ import studentRoutes from './routes/studentRoutes.js';
 import invoiceRoutes from './routes/invoiceRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import courseRoutes from './routes/courseRoutes.js';
+import extraIncomeRoutes from './routes/extraIncomeRoutes.js';
 
 // Model Imports (for seeding)
 import User from './models/User.js';
@@ -34,6 +36,8 @@ app.use('/api/students', studentRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/courses', courseRoutes);
+app.use('/api/extra-incomes', extraIncomeRoutes);
 
 // Seed function
 const seedDatabase = async () => {

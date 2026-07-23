@@ -98,23 +98,73 @@ export const AppProvider = ({ children }) => {
   const [courses, setCourses] = useState(initialCourses);
   const [extraIncomes, setExtraIncomes] = useState([]);
 
+  // Cloudinary Image Upload Helper
+  const uploadToCloudinary = async (base64String, folder = 'springs_academy') => {
+    if (!base64String || typeof base64String !== 'string' || !base64String.startsWith('data:image')) {
+      return base64String;
+    }
+    try {
+      const res = await fetch(`${API_URL}/api/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64String, folder })
+      });
+      const data = await res.json();
+      if (data && data.url) {
+        return data.url;
+      }
+    } catch (err) {
+      console.warn("Cloudinary Upload Warning:", err);
+    }
+    return base64String;
+  };
+
   // Fetch Live Data directly from MongoDB Atlas backend API on load
   useEffect(() => {
     const fetchAtlasData = async () => {
       try {
-        const studentRes = await fetch(`${API_URL}/api/students`);
-        if (studentRes.ok) {
+        const headers = currentUser?.token ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
+
+        // 1. Fetch Students
+        const studentRes = await fetch(`${API_URL}/api/students`, { headers }).catch(() => null);
+        if (studentRes && studentRes.ok) {
           const studentData = await studentRes.json();
-          if (studentData && studentData.length > 0) {
-            setStudents(studentData);
-          }
+          if (studentData && studentData.length > 0) setStudents(studentData);
+        }
+
+        // 2. Fetch Employees
+        const empRes = await fetch(`${API_URL}/api/admin/employees`, { headers }).catch(() => null);
+        if (empRes && empRes.ok) {
+          const empData = await empRes.json();
+          if (empData && empData.length > 0) setEmployees(empData);
+        }
+
+        // 3. Fetch Expenses
+        const expRes = await fetch(`${API_URL}/api/admin/expenses`, { headers }).catch(() => null);
+        if (expRes && expRes.ok) {
+          const expData = await expRes.json();
+          if (expData && expData.length > 0) setExpenses(expData);
+        }
+
+        // 4. Fetch Courses
+        const courseRes = await fetch(`${API_URL}/api/courses`).catch(() => null);
+        if (courseRes && courseRes.ok) {
+          const courseData = await courseRes.json();
+          if (courseData && courseData.length > 0) setCourses(courseData);
+        }
+
+        // 5. Fetch Extra Incomes
+        const incomeRes = await fetch(`${API_URL}/api/extra-incomes`).catch(() => null);
+        if (incomeRes && incomeRes.ok) {
+          const incomeData = await incomeRes.json();
+          if (incomeData && incomeData.length > 0) setExtraIncomes(incomeData);
         }
       } catch (err) {
         console.warn("Notice: Operating on live fallback database state:", err);
       }
     };
     fetchAtlasData();
-  }, []);
+  }, [currentUser]);
 
   // Auth Actions
   const login = (username, password) => {
@@ -214,6 +264,18 @@ export const AppProvider = ({ children }) => {
   };
 
   const addStudent = async (studentData) => {
+    // 1. Upload student photos to Cloudinary if base64 provided
+    const profileImage = await uploadToCloudinary(studentData.profileImage, 'students/profiles');
+    const idPhoto = await uploadToCloudinary(studentData.idPhoto, 'students/ids');
+    const sslcPhoto = await uploadToCloudinary(studentData.sslcPhoto, 'students/sslc');
+
+    const preparedPayload = {
+      ...studentData,
+      profileImage,
+      idPhoto,
+      sslcPhoto
+    };
+
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (currentUser?.token) {
@@ -223,7 +285,7 @@ export const AppProvider = ({ children }) => {
       const res = await fetch(`${API_URL}/api/students`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(studentData)
+        body: JSON.stringify(preparedPayload)
       });
 
       if (res.ok) {
@@ -504,7 +566,25 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
-  const addEmployee = (empData) => {
+  const addEmployee = async (empData) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      const res = await fetch(`${API_URL}/api/admin/employees`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(empData)
+      });
+      if (res.ok) {
+        const createdEmp = await res.json();
+        setEmployees(prev => [...prev, createdEmp]);
+        return createdEmp;
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas employee creation warning:", err);
+    }
+
     const empId = 'emp_' + Math.random().toString(36).substr(2, 9);
     const newEmp = {
       _id: empId,
@@ -523,29 +603,26 @@ export const AppProvider = ({ children }) => {
       teachingHours: 0
     };
     setEmployees(prev => [...prev, newEmp]);
-
-    if (empData.username && empData.password) {
-      const newUser = {
-        _id: 'u_' + Math.random().toString(36).substr(2, 9),
-        username: empData.username,
-        password: empData.password,
-        name: empData.name,
-        email: empData.email,
-        role: empData.role || 'Employee',
-        department: empData.department,
-        designation: empData.designation,
-        salary: parseFloat(empData.salary) || 0,
-        employeeId: empId
-      };
-      setUsers(prev => [...prev, newUser]);
-    }
   };
 
   const deleteEmployee = (empId) => {
     setEmployees(prev => prev.filter(e => e._id !== empId));
   };
 
-  const updateEmployeeHRRecord = (empId, hrData) => {
+  const updateEmployeeHRRecord = async (empId, hrData) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      await fetch(`${API_URL}/api/admin/employees/${empId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(hrData)
+      });
+    } catch (err) {
+      console.warn("MongoDB Atlas employee HR update warning:", err);
+    }
+
     setEmployees(prev => prev.map(e => {
       if (e._id === empId) {
         return {
@@ -566,26 +643,29 @@ export const AppProvider = ({ children }) => {
       }
       return e;
     }));
-
-    setUsers(prev => prev.map(u => {
-      if (u.employeeId === empId) {
-        return {
-          ...u,
-          username: hrData.username || u.username,
-          password: hrData.password || u.password,
-          name: hrData.name || u.name,
-          email: hrData.email || u.email,
-          role: hrData.role || u.role,
-          department: hrData.department || u.department,
-          designation: hrData.designation || u.designation,
-          salary: hrData.salary ? parseFloat(hrData.salary) : u.salary
-        };
-      }
-      return u;
-    }));
   };
 
-  const fileExpenseClaim = (expenseData) => {
+  const fileExpenseClaim = async (expenseData) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      const res = await fetch(`${API_URL}/api/admin/expenses`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(expenseData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.claim) {
+          setExpenses(prev => [...prev, data.claim]);
+          return data.claim;
+        }
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas expense submission warning:", err);
+    }
+
     const newExpense = {
       _id: 'exp_' + Math.random().toString(36).substr(2, 9),
       employeeId: {
@@ -603,7 +683,20 @@ export const AppProvider = ({ children }) => {
     setExpenses(prev => [...prev, newExpense]);
   };
 
-  const editExpenseClaim = (expenseId, updatedData) => {
+  const editExpenseClaim = async (expenseId, updatedData) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      await fetch(`${API_URL}/api/admin/expenses/${expenseId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updatedData)
+      });
+    } catch (err) {
+      console.warn("MongoDB Atlas expense update warning:", err);
+    }
+
     setExpenses(prev => prev.map(exp => {
       if (exp._id === expenseId) {
         return {
@@ -619,20 +712,42 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
-  const deleteExpenseClaim = (expenseId) => {
+  const deleteExpenseClaim = async (expenseId) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      await fetch(`${API_URL}/api/admin/expenses/${expenseId}`, {
+        method: 'DELETE',
+        headers
+      });
+    } catch (err) {
+      console.warn("MongoDB Atlas expense delete warning:", err);
+    }
+
     setExpenses(prev => prev.filter(exp => exp._id !== expenseId));
   };
 
-  const reviewExpense = (expenseId, status) => {
-    setExpenses(prev => prev.map(exp => {
-      if (exp._id === expenseId) {
-        return { ...exp, status };
-      }
-      return exp;
-    }));
+  const reviewExpense = async (expenseId, status) => {
+    await editExpenseClaim(expenseId, { status });
   };
 
-  const addCourse = (courseData) => {
+  const addCourse = async (courseData) => {
+    try {
+      const res = await fetch(`${API_URL}/api/courses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(courseData)
+      });
+      if (res.ok) {
+        const createdCourse = await res.json();
+        setCourses(prev => [...prev, createdCourse]);
+        return createdCourse;
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas course creation warning:", err);
+    }
+
     const newCourse = {
       _id: 'c_' + Math.random().toString(36).substr(2, 9),
       name: courseData.name,
@@ -643,7 +758,17 @@ export const AppProvider = ({ children }) => {
     setCourses(prev => [...prev, newCourse]);
   };
 
-  const editCourse = (courseId, updatedData) => {
+  const editCourse = async (courseId, updatedData) => {
+    try {
+      await fetch(`${API_URL}/api/courses/${courseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData)
+      });
+    } catch (err) {
+      console.warn("MongoDB Atlas course update warning:", err);
+    }
+
     setCourses(prev => prev.map(c => c._id === courseId ? { 
       ...c, 
       name: updatedData.name,
@@ -653,11 +778,34 @@ export const AppProvider = ({ children }) => {
     } : c));
   };
 
-  const deleteCourse = (courseId) => {
+  const deleteCourse = async (courseId) => {
+    try {
+      await fetch(`${API_URL}/api/courses/${courseId}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn("MongoDB Atlas course delete warning:", err);
+    }
+
     setCourses(prev => prev.filter(c => c._id !== courseId));
   };
 
-  const addExtraIncome = (incomeData) => {
+  const addExtraIncome = async (incomeData) => {
+    try {
+      const res = await fetch(`${API_URL}/api/extra-incomes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(incomeData)
+      });
+      if (res.ok) {
+        const createdIncome = await res.json();
+        setExtraIncomes(prev => [...prev, createdIncome]);
+        return createdIncome;
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas extra income creation warning:", err);
+    }
+
     const newIncome = {
       _id: 'inc_' + Math.random().toString(36).substr(2, 9),
       amount: parseFloat(incomeData.amount),
@@ -669,7 +817,15 @@ export const AppProvider = ({ children }) => {
     setExtraIncomes(prev => [...prev, newIncome]);
   };
 
-  const deleteExtraIncome = (incomeId) => {
+  const deleteExtraIncome = async (incomeId) => {
+    try {
+      await fetch(`${API_URL}/api/extra-incomes/${incomeId}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn("MongoDB Atlas extra income delete warning:", err);
+    }
+
     setExtraIncomes(prev => prev.filter(i => i._id !== incomeId));
   };
 
