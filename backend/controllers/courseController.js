@@ -12,17 +12,33 @@ export const getCourses = async (req, res) => {
 
 // Create a new course
 export const createCourse = async (req, res) => {
-  const { name, duration, fee, details } = req.body;
+  let { name, duration, fee, details } = req.body || {};
+  if (typeof req.body === 'string') {
+    name = req.body;
+  }
+  
+  if (!name && req.body && typeof req.body === 'object') {
+    name = req.body.name || req.body.title || req.body.courseName;
+  }
+
+  if (!name) {
+    return res.status(400).json({ message: 'Course name is required' });
+  }
+
   try {
-    const courseExists = await Course.findOne({ name });
-    if (courseExists) {
-      return res.status(400).json({ message: 'Course with this name already exists' });
+    const existingCourse = await Course.findOne({ name: new RegExp(`^${name.trim()}$`, 'i') });
+    if (existingCourse) {
+      if (duration) existingCourse.duration = duration;
+      if (fee !== undefined) existingCourse.fee = parseFloat(fee);
+      if (details !== undefined) existingCourse.details = details;
+      await existingCourse.save();
+      return res.status(200).json(existingCourse);
     }
 
     const course = await Course.create({
-      name,
-      duration,
-      fee,
+      name: name.trim(),
+      duration: duration || '6 Months',
+      fee: fee !== undefined ? parseFloat(fee) : 0,
       details: details || ''
     });
 

@@ -78,11 +78,7 @@ export default function App() {
 
   const visibleStudents = currentUser?.role === 'Super Admin' ? students : students.filter(s => !s.isConfidentialFee);
 
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'dark' || saved === 'light') return saved;
-    return 'light'; // default is light mode
-  });
+  const [theme, setTheme] = useState('light');
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -90,21 +86,13 @@ export default function App() {
     } else {
       document.documentElement.classList.remove('dark');
     }
-    localStorage.setItem('theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('sidebarCollapsed');
-    return saved === 'true';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('sidebarCollapsed', isSidebarCollapsed);
-  }, [isSidebarCollapsed]);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Modal states
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
@@ -197,14 +185,20 @@ export default function App() {
 
   const stats = getStats();
 
-  const handleStudentSubmit = (e) => {
+  const handleStudentSubmit = async (e) => {
     e.preventDefault();
     if (!studentForm.name || !studentForm.email) return;
     const submissionData = {
       ...studentForm,
       isConfidentialFee: currentUser?.role === 'Super Admin' ? Boolean(studentForm.isConfidentialFee) : false
     };
-    addStudent(submissionData);
+
+    const res = await addStudent(submissionData);
+    if (res && res.error) {
+      toast.error(res.error);
+      return;
+    }
+
     setStudentForm({ name: '', email: '', dob: '', customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, fatherName: '', motherName: '', parentsPhone: '', idPhoto: null, sslcPhoto: null, courseName: '', batchId: '', totalPackageAmount: 45000, installmentCount: 3, isConfidentialFee: false });
     setIsStudentModalOpen(false);
     toast.success("Student registered successfully! Invoices generated.");
@@ -240,10 +234,14 @@ export default function App() {
     }
   };
 
-  const handleEmployeeSubmit = (e) => {
+  const handleEmployeeSubmit = async (e) => {
     e.preventDefault();
     if (!employeeForm.name || !employeeForm.email) return;
-    addEmployee(employeeForm);
+    const res = await addEmployee(employeeForm);
+    if (res && res.error) {
+      toast.error(res.error);
+      return;
+    }
     setEmployeeForm({ name: '', email: '', role: 'Employee', department: 'Academic', designation: 'Instructor', salary: 40000, username: '', password: '', phoneNumber: '', address: '', qualification: '', profileImage: null });
     setIsEmployeeModalOpen(false);
     toast.success("Employee record created!");
@@ -446,14 +444,18 @@ export default function App() {
     toast.success("Extra income recorded successfully!");
   };
 
-  const handleCourseSubmit = (e) => {
+  const handleCourseSubmit = async (e) => {
     e.preventDefault();
     if (!courseForm.name || !courseForm.fee) return;
     if (courseFormMode === 'add') {
-      addCourse(courseForm);
+      const res = await addCourse(courseForm);
+      if (res && res.error) {
+        toast.error(res.error);
+        return;
+      }
       toast.success("Course added successfully!");
     } else if (courseFormMode === 'edit' && editingCourseObj) {
-      editCourse(editingCourseObj._id, courseForm);
+      await editCourse(editingCourseObj._id, courseForm);
       toast.success("Course details updated successfully!");
     }
     setCourseForm({ name: '', duration: '6 Months', fee: '', details: '' });
@@ -478,14 +480,14 @@ export default function App() {
     setIsEditPaymentModalOpen(true);
   };
 
-  const handleEditPaymentSubmit = (e) => {
+  const handleEditPaymentSubmit = async (e) => {
     e.preventDefault();
     if (!editingPaymentData || !editingPaymentData.studentId || !editingPaymentData.paymentId) return;
     if (parseFloat(editingPaymentData.amount) <= 0) {
       toast.error("Payment amount must be greater than 0.");
       return;
     }
-    editPayment(editingPaymentData.studentId, editingPaymentData.paymentId, editingPaymentData);
+    await editPayment(editingPaymentData.studentId, editingPaymentData.paymentId, editingPaymentData);
     setIsEditPaymentModalOpen(false);
     toast.success("Payment details corrected & ledger updated!");
   };
@@ -1133,18 +1135,36 @@ export default function App() {
     if (currentUser?.role !== 'Super Admin' && student.isConfidentialFee) {
       return acc;
     }
-    if (student.payments) {
-      const studentPayments = student.payments.map(pay => ({
-        ...pay,
+
+    const paidInvoiceLogs = (student.invoices || [])
+      .filter(inv => inv.status === 'Paid')
+      .map(inv => ({
+        _id: inv._id,
+        amount: inv.amount,
+        date: inv.paidOn ? String(inv.paidOn).split('T')[0] : inv.dueDate,
+        paymentMethod: inv.paymentMethod || 'Cash',
+        receiptNumber: inv.invoiceNumber || 'INV-REC',
+        particulars: inv.particulars || 'Tuition Fee Payment',
         studentName: student.name,
         studentRoll: student.rollNumber,
         studentImage: student.profileImage,
         studentObj: student
       }));
-      return [...acc, ...studentPayments];
-    }
-    return acc;
-  }, []).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const manualPaymentLogs = (student.payments || []).map(pay => ({
+      ...pay,
+      studentName: student.name,
+      studentRoll: student.rollNumber,
+      studentImage: student.profileImage,
+      studentObj: student
+    }));
+
+    const combined = [...paidInvoiceLogs, ...manualPaymentLogs];
+    const uniqueMap = new Map();
+    combined.forEach(p => uniqueMap.set(p._id, p));
+
+    return [...acc, ...Array.from(uniqueMap.values())];
+  }, []).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   if (!currentUser) {
     return <Auth />;
@@ -1359,18 +1379,36 @@ export default function App() {
           {/* TAB 1: DASHBOARD */}
           {activeTab === 'dashboard' && (() => {
             // Live payment array flatmap
-            const allPaymentsRaw = visibleStudents.flatMap(s => (s.payments || []).map(p => ({
-              ...p,
-              studentName: s.name,
-              studentImage: s.profileImage,
-              courseName: s.courseName,
-              studentObj: s,
-            }))).sort((a, b) => new Date(b.date) - new Date(a.date));
+            const allPaymentsRaw = visibleStudents.flatMap(s => {
+              const paidInvoices = (s.invoices || [])
+                .filter(inv => inv.status === 'Paid')
+                .map(inv => ({
+                  _id: inv._id,
+                  amount: inv.amount,
+                  date: inv.paidOn ? String(inv.paidOn).split('T')[0] : inv.dueDate,
+                  paymentMethod: inv.paymentMethod || 'Cash',
+                  receiptNumber: inv.invoiceNumber || 'INV-REC',
+                  particulars: inv.particulars || 'Tuition Fee Payment',
+                  studentName: s.name,
+                  studentImage: s.profileImage,
+                  courseName: s.courseName,
+                  studentObj: s
+                }));
+
+              const manual = (s.payments || []).map(p => ({
+                ...p,
+                studentName: s.name,
+                studentImage: s.profileImage,
+                courseName: s.courseName,
+                studentObj: s
+              }));
+
+              return [...paidInvoices, ...manual];
+            }).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
             // Monthly dropdown options
             const availableMonths = Array.from(new Set(
-              visibleStudents.flatMap(s => (s.payments || []).map(p => p.date ? p.date.substring(0, 7) : null))
-                .filter(Boolean)
+              allPaymentsRaw.map(p => p.date ? p.date.substring(0, 7) : null).filter(Boolean)
             )).sort().reverse();
 
             // Filtered payments by selected month
@@ -1409,30 +1447,52 @@ export default function App() {
             const monthlyPayroll = employees.reduce((sum, e) => sum + e.salary, 0);
             const monthlyNetProfit = monthlyCollected - monthlyPayroll - monthlyExpenses;
 
-            // Bar chart data filtered by month
-            const revenueByCourseFull = courses.map(c => {
-              const courseStudents = visibleStudents.filter(s => s.courseName === c.name);
-              const enrolled = courseStudents.filter(s => {
-                if (dashboardMonth === 'All') return true;
-                const regMonth = s.invoices && s.invoices[0] ? s.invoices[0].dueDate.substring(0, 7) : null;
-                return regMonth === dashboardMonth;
-              }).length;
+            // Build comprehensive course list from courses array + student course names
+            const allCourseObjects = [...courses];
+            visibleStudents.forEach(s => {
+              if (s.courseName && !allCourseObjects.some(c => (c.name || '').toLowerCase() === s.courseName.toLowerCase())) {
+                allCourseObjects.push({ _id: 'c_' + s.courseName, name: s.courseName, duration: '6 Months', fee: s.ledger?.totalPackageAmount || 0 });
+              }
+            });
+
+            // Bar chart data: Revenue by course
+            const revenueByCourseFull = allCourseObjects.map(c => {
+              const cName = (c.name || '').trim().toLowerCase();
+              const courseStudents = visibleStudents.filter(s => {
+                const sCourse = (s.courseName || '').trim().toLowerCase();
+                return sCourse === cName || sCourse.includes(cName) || cName.includes(sCourse);
+              });
+
+              const enrolled = courseStudents.length;
+
               const collected = courseStudents.reduce((sum, s) => {
-                const payments = (s.payments || []).filter(p => {
+                const paidInvoices = (s.invoices || []).filter(inv => {
+                  if (inv.status !== 'Paid') return false;
+                  if (dashboardMonth === 'All') return true;
+                  const paidDate = inv.paidOn ? String(inv.paidOn).split('T')[0] : inv.dueDate;
+                  return paidDate && paidDate.startsWith(dashboardMonth);
+                }).reduce((acc, inv) => acc + inv.amount, 0);
+
+                const manualPayments = (s.payments || []).filter(p => {
                   if (dashboardMonth === 'All') return true;
                   return p.date && p.date.startsWith(dashboardMonth);
-                });
-                return sum + payments.reduce((acc, p) => acc + p.amount, 0);
+                }).reduce((acc, p) => acc + (p.amount || 0), 0);
+
+                const totalStudentCollected = Math.max(s.ledger?.amountPaid || 0, paidInvoices + manualPayments);
+                return sum + (dashboardMonth === 'All' ? totalStudentCollected : (paidInvoices + manualPayments));
               }, 0);
+
               const outstanding = courseStudents.reduce((sum, s) => {
-                const invoices = (s.invoices || []).filter(inv => {
+                if (dashboardMonth === 'All') {
+                  return sum + (s.ledger?.balanceDue ?? 0);
+                }
+                const pendingInvoices = (s.invoices || []).filter(inv => {
                   if (inv.status === 'Paid') return false;
-                  if (dashboardMonth === 'All') return true;
                   return inv.dueDate && inv.dueDate.startsWith(dashboardMonth);
                 });
-                return sum + invoices.reduce((acc, inv) => acc + inv.amount, 0);
+                return sum + pendingInvoices.reduce((acc, inv) => acc + inv.amount, 0);
               }, 0);
-              
+
               return {
                 name: c.name.length > 18 ? c.name.slice(0, 16) + '...' : c.name,
                 enrolled,
@@ -2146,8 +2206,9 @@ export default function App() {
 
           {activeTab === 'invoices' && (() => {
             const filteredPaymentsReport = allPayments.filter(pay => {
-              if (paymentStartDate && pay.date < paymentStartDate) return false;
-              if (paymentEndDate && pay.date > paymentEndDate) return false;
+              const payDateStr = pay.date ? String(pay.date).split('T')[0] : '';
+              if (paymentStartDate && payDateStr < paymentStartDate) return false;
+              if (paymentEndDate && payDateStr > paymentEndDate) return false;
               return true;
             });
 
@@ -2340,6 +2401,93 @@ export default function App() {
 
                 </div>
 
+                {/* Master Invoices Schedule Section */}
+                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-blue-400" />
+                        All Student Invoices & Payment Schedule
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">Manage, track, and collect payment for all student invoices in MongoDB Atlas.</p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-900/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800">
+                        <tr>
+                          <th className="px-4 py-3">Invoice #</th>
+                          <th className="px-4 py-3">Student</th>
+                          <th className="px-4 py-3">Particulars</th>
+                          <th className="px-4 py-3">Amount</th>
+                          <th className="px-4 py-3">Due Date</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {visibleStudents.flatMap(student => 
+                          (student.invoices || []).map(inv => ({
+                            ...inv,
+                            studentName: student.name,
+                            studentRoll: student.rollNumber,
+                            studentObj: student
+                          }))
+                        ).length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="text-center py-6 text-slate-500">No student invoices found in database.</td>
+                          </tr>
+                        ) : (
+                          visibleStudents.flatMap(student => 
+                            (student.invoices || []).map(inv => ({
+                              ...inv,
+                              studentName: student.name,
+                              studentRoll: student.rollNumber,
+                              studentObj: student
+                            }))
+                          ).map((inv, idx) => (
+                            <tr key={inv._id || idx} className="hover:bg-slate-900/50 transition-colors">
+                              <td className="px-4 py-3 font-mono font-semibold text-blue-400">{inv.invoiceNumber || 'INV-001'}</td>
+                              <td className="px-4 py-3 font-medium text-white">{inv.studentName} <span className="text-[10px] text-slate-500 font-mono">({inv.studentRoll})</span></td>
+                              <td className="px-4 py-3 text-slate-400">{inv.particulars || 'Tuition Fee'}</td>
+                              <td className="px-4 py-3 font-bold text-white">₹{(inv.amount || 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 font-mono text-slate-400">{inv.dueDate || 'N/A'}</td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                  inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                }`}>
+                                  {inv.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {inv.status === 'Paid' ? (
+                                  <button
+                                    onClick={() => generatePDFInvoice(inv.studentObj, inv)}
+                                    className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                  >
+                                    Download Invoice
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setPaymentModalData({ studentId: inv.studentObj._id, invoiceId: inv._id });
+                                      setIsPaymentModalOpen(true);
+                                    }}
+                                    className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                  >
+                                    Mark Paid
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
               </div>
             );
           })()}
@@ -2528,52 +2676,76 @@ export default function App() {
                             </span>
                           </div>
 
-                          <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-3">
-                            <div className="flex justify-between items-center mb-1">
-                              <p className="text-[10px] text-slate-400 uppercase font-semibold">Current Balance Due</p>
-                              <p className="text-[10px] text-slate-500 font-medium">Pkg: ₹{student.ledger.totalPackageAmount.toLocaleString()}</p>
+                          <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-3 space-y-1">
+                            <div className="flex justify-between items-center">
+                              <p className="text-[10px] text-slate-400 uppercase font-semibold">Package Total</p>
+                              <p className="text-xs text-white font-bold">₹{(student.ledger?.totalPackageAmount || 0).toLocaleString()}</p>
                             </div>
-                            <p className={`text-xl font-extrabold ${student.ledger.balanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                              ₹{student.ledger.balanceDue.toLocaleString()}
-                            </p>
+                            <div className="flex justify-between items-center">
+                              <p className="text-[10px] text-emerald-400 uppercase font-semibold">Amount Paid</p>
+                              <p className="text-xs text-emerald-400 font-bold">₹{(student.ledger?.amountPaid || 0).toLocaleString()}</p>
+                            </div>
+                            <div className="flex justify-between items-center pt-1 border-t border-slate-800">
+                              <p className="text-[10px] text-rose-400 uppercase font-bold">Remaining Balance Due</p>
+                              <p className={`text-base font-extrabold ${(student.ledger?.balanceDue || 0) > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                ₹{(student.ledger?.balanceDue || 0).toLocaleString()}
+                              </p>
+                            </div>
                           </div>
 
-                          {/* Logged Payments History */}
-                          {student.payments && student.payments.length > 0 && (
-                            <div className="mb-4 space-y-1.5">
-                              <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                <span>Recorded Payments ({student.payments.length})</span>
-                              </div>
-                              <div className="max-h-[110px] overflow-y-auto space-y-1.5 pr-1">
-                                {student.payments.map((pay) => (
-                                  <div key={pay._id} className="flex items-center justify-between bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 text-xs">
-                                    <div>
-                                      <span className="font-semibold text-emerald-400">+₹{pay.amount.toLocaleString()}</span>
-                                      <span className="text-[10px] text-slate-500 ml-2">{pay.date} ({pay.paymentMethod})</span>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      {currentUser.role === 'Super Admin' && (
+                          {/* Logged Payments & Paid Invoices History */}
+                          {(() => {
+                            const paidInvoicesLogs = (student.invoices || [])
+                              .filter(inv => inv.status === 'Paid')
+                              .map(inv => ({
+                                _id: inv._id,
+                                amount: inv.amount,
+                                date: inv.paidOn ? String(inv.paidOn).split('T')[0] : inv.dueDate,
+                                paymentMethod: inv.paymentMethod || 'Cash',
+                                receiptNumber: inv.invoiceNumber || 'INV-REC'
+                              }));
+
+                            const manualPayments = student.payments || [];
+                            const combinedLogs = [...paidInvoicesLogs, ...manualPayments];
+
+                            if (combinedLogs.length === 0) return null;
+
+                            return (
+                              <div className="mb-4 space-y-1.5">
+                                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                  <span>Payment Logs ({combinedLogs.length})</span>
+                                </div>
+                                <div className="max-h-[120px] overflow-y-auto space-y-1.5 pr-1">
+                                  {combinedLogs.map((pay, idx) => (
+                                    <div key={pay._id || idx} className="flex items-center justify-between bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 text-xs">
+                                      <div>
+                                        <span className="font-semibold text-emerald-400">+₹{pay.amount.toLocaleString()}</span>
+                                        <span className="text-[10px] text-slate-400 ml-2">{pay.date} ({pay.paymentMethod})</span>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        {currentUser.role === 'Super Admin' && (
+                                          <button
+                                            onClick={() => openEditPaymentModal(student, pay)}
+                                            className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                            title="Edit payment amount"
+                                          >
+                                            <Edit className="w-3 h-3" /> Edit
+                                          </button>
+                                        )}
                                         <button
-                                          onClick={() => openEditPaymentModal(student, pay)}
-                                          className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
-                                          title="Edit payment amount"
+                                          onClick={() => generatePDFInvoice(student, pay)}
+                                          className="bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
+                                          title="Download receipt"
                                         >
-                                          <Edit className="w-3 h-3" /> Edit
+                                          Receipt
                                         </button>
-                                      )}
-                                      <button
-                                        onClick={() => generatePDFInvoice(student, pay)}
-                                        className="bg-blue-500/15 text-blue-400 hover:bg-blue-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors"
-                                        title="Download receipt"
-                                      >
-                                        Receipt
-                                      </button>
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
 
                         <button
@@ -3823,14 +3995,14 @@ export default function App() {
         )}
 
         {viewingStudent && profileModalMode === 'makePayment' && (
-          <form onSubmit={(e) => {
+          <form onSubmit={async (e) => {
             e.preventDefault();
             if(newInstallmentForm.amount > 0) {
               if (newInstallmentForm.method === 'UPI' && !newInstallmentForm.upiScreenshot) {
                 toast.error("Please upload the UPI payment screenshot.");
                 return;
               }
-              makePayment(viewingStudent._id, newInstallmentForm.amount, newInstallmentForm.date, newInstallmentForm.method, newInstallmentForm.upiScreenshot);
+              await makePayment(viewingStudent._id, newInstallmentForm.amount, newInstallmentForm.date, newInstallmentForm.method, newInstallmentForm.upiScreenshot);
               toast.success("Payment recorded successfully!");
               setIsStudentProfileModalOpen(false);
             }

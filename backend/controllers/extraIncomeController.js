@@ -12,14 +12,18 @@ export const getExtraIncomes = async (req, res) => {
 
 // Add extra income
 export const createExtraIncome = async (req, res) => {
-  const { title, amount, category, date, description } = req.body;
+  const { title, source, amount, category, date, description, details, paymentMethod } = req.body;
   try {
+    const incomeTitle = title || source || 'Miscellaneous Income';
     const income = await ExtraIncome.create({
-      title,
-      amount,
+      title: incomeTitle,
+      source: source || incomeTitle,
+      amount: parseFloat(amount),
       category: category || 'General',
       date: date || new Date().toISOString().split('T')[0],
-      description: description || ''
+      description: description || details || '',
+      details: details || description || '',
+      paymentMethod: paymentMethod || 'Cash'
     });
     res.status(201).json(income);
   } catch (error) {

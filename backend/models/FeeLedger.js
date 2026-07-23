@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const feeLedgerSchema = new mongoose.Schema({
   studentId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'Student',
     required: true,
     unique: true

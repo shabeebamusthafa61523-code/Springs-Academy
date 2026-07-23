@@ -21,7 +21,7 @@ export default function Auth() {
     }
 
     if (isLoginView) {
-      const success = login(formData.username, formData.password);
+      const success = await login(formData.username, formData.password);
       if (!success) {
         setError('Invalid username or password.');
       }

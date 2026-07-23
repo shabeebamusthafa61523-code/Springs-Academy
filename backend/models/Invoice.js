@@ -7,7 +7,7 @@ const invoiceSchema = new mongoose.Schema({
     unique: true
   },
   studentId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'Student',
     required: true
   },
@@ -34,7 +34,7 @@ const invoiceSchema = new mongoose.Schema({
   },
   particulars: {
     type: String,
-    required: true
+    default: 'Installment / Course Tuition Fee'
   }
 }, { timestamps: true });
 

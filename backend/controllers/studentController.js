@@ -115,11 +115,30 @@ export const getStudents = async (req, res) => {
     const studentsWithLedger = [];
 
     for (const student of students) {
-      const ledger = await FeeLedger.findOne({ studentId: student._id });
+      let ledger = await FeeLedger.findOne({ studentId: student._id });
       const invoices = await Invoice.find({ studentId: student._id });
+      
+      const paidInvoices = invoices.filter(inv => inv.status === 'Paid');
+      const calculatedPaid = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+
+      let ledgerObj;
+      if (!ledger) {
+        ledgerObj = {
+          totalPackageAmount: 45000,
+          amountPaid: calculatedPaid,
+          balanceDue: Math.max(0, 45000 - calculatedPaid),
+          paymentStatus: calculatedPaid >= 45000 ? 'Fully Paid' : calculatedPaid > 0 ? 'Partially Paid' : 'Unpaid'
+        };
+      } else {
+        ledgerObj = ledger.toObject();
+        ledgerObj.amountPaid = Math.max(ledgerObj.amountPaid || 0, calculatedPaid);
+        ledgerObj.balanceDue = Math.max(0, ledgerObj.totalPackageAmount - ledgerObj.amountPaid);
+        ledgerObj.paymentStatus = ledgerObj.balanceDue === 0 ? 'Fully Paid' : ledgerObj.amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+      }
+
       studentsWithLedger.push({
         ...student.toObject(),
-        ledger,
+        ledger: ledgerObj,
         invoices
       });
     }

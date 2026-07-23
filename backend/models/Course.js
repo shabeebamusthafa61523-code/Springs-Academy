@@ -8,11 +8,11 @@ const courseSchema = new mongoose.Schema({
   },
   duration: {
     type: String,
-    required: true
+    default: '6 Months'
   },
   fee: {
     type: Number,
-    required: true
+    default: 0
   },
   details: {
     type: String,

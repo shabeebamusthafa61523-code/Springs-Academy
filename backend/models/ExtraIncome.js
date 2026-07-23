@@ -5,6 +5,10 @@ const extraIncomeSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  source: {
+    type: String,
+    default: 'Miscellaneous'
+  },
   amount: {
     type: Number,
     required: true
@@ -20,6 +24,14 @@ const extraIncomeSchema = new mongoose.Schema({
   description: {
     type: String,
     default: ''
+  },
+  details: {
+    type: String,
+    default: ''
+  },
+  paymentMethod: {
+    type: String,
+    default: 'Cash'
   }
 }, { timestamps: true });
 

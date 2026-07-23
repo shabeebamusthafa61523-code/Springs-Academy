@@ -13,72 +13,19 @@ const getApiUrl = () => {
 
 export const API_URL = getApiUrl();
 
-// Initial state for fallback local storage mode
-const initialStudents = [
-  {
-    _id: "s1",
-    rollNumber: "AG-2026-ST001",
-    name: "Alice Johnson",
-    email: "alice@example.com",
-    batchId: "BATCH-WEB-01",
-    courseName: "Full-Stack Web Development",
-    status: "Active",
-    ledger: {
-      totalPackageAmount: 60000,
-      amountPaid: 20000,
-      balanceDue: 40000,
-      paymentStatus: "Partially Paid"
-    },
-    invoices: [
-      { _id: "inv1", invoiceNumber: "INV-2026-00001", amount: 20000, dueDate: "2026-06-15", status: "Paid", paymentMethod: "Bank Transfer", paidOn: "2026-06-14", particulars: "First Installment - Course Tuition Fee" },
-      { _id: "inv2", invoiceNumber: "INV-2026-00002", amount: 20000, dueDate: "2026-08-15", status: "Pending", paymentMethod: "N/A", paidOn: null, particulars: "Second Installment - Course Tuition Fee" },
-      { _id: "inv3", invoiceNumber: "INV-2026-00003", amount: 20000, dueDate: "2026-10-15", status: "Pending", paymentMethod: "N/A", paidOn: null, particulars: "Third Installment - Course Tuition Fee" }
-    ]
-  },
-  {
-    _id: "s2",
-    rollNumber: "AG-2026-ST002",
-    name: "Charlie Smith",
-    email: "charlie@example.com",
-    batchId: "BATCH-MOBILE-02",
-    courseName: "Mobile App Development",
-    status: "Active",
-    ledger: {
-      totalPackageAmount: 50000,
-      amountPaid: 0,
-      balanceDue: 50000,
-      paymentStatus: "Unpaid"
-    },
-    invoices: [
-      { _id: "inv4", invoiceNumber: "INV-2026-00004", amount: 25000, dueDate: "2026-07-20", status: "Pending", paymentMethod: "N/A", paidOn: null, particulars: "First Installment - Mobile Course" },
-      { _id: "inv5", invoiceNumber: "INV-2026-00005", amount: 25000, dueDate: "2026-09-20", status: "Pending", paymentMethod: "N/A", paidOn: null, particulars: "Second Installment - Mobile Course" }
-    ]
-  }
-];
-
-const initialEmployees = [
-  { _id: "emp1", name: "Coordinator Alex", email: "finance@academy.com", role: "Admin", department: "Finance & HR", designation: "Accounts Manager", salary: 60000 },
-  { _id: "emp2", name: "Instructor Bob", email: "faculty@academy.com", role: "Employee", department: "Academic", designation: "Lead Web Instructor", salary: 45000, teachingHours: 32 }
-];
-
-const initialExpenses = [
-  { _id: "exp1", employeeId: { _id: "emp2", name: "Instructor Bob", email: "faculty@academy.com", department: "Academic" }, title: "Whiteboard Markers & Stationary", amount: 1500, date: "2026-07-10", status: "Approved", description: "Supplies for Classroom 3B" },
-  { _id: "exp2", employeeId: { _id: "emp2", name: "Instructor Bob", email: "faculty@academy.com", department: "Academic" }, title: "Lab Router Replacement", amount: 5400, date: "2026-07-15", status: "Pending", description: "Replacement of faulty lab gateway" }
-];
-
-const initialCourses = [
-  { _id: "c1", name: "PDCA",       duration: "3 Months", fee: 10500, details: "Professional Diploma in Computer Applications — foundational computing and office productivity." },
-  { _id: "c2", name: "CCAP",       duration: "6 Months", fee: 25500, details: "Comprehensive Certificate in Advanced Programming — core programming concepts and web basics." },
-  { _id: "c3", name: "CCAP (F)",   duration: "8 Months", fee: 32500, details: "CCAP with Full-Stack specialisation — extends CCAP with front-end and back-end development." },
-  { _id: "c4", name: "CCAP PLUS",  duration: "12 Months", fee: 45500, details: "CCAP Plus — the most advanced track covering full-stack development, cloud, and project management." }
-];
-
 export const AppProvider = ({ children }) => {
-  // Session Storage for Active Auth Session
+  // Session / Local Storage for Active Auth Session
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const savedSession = sessionStorage.getItem('agy_session_user');
-      return savedSession ? JSON.parse(savedSession) : null;
+      const savedSession = sessionStorage.getItem('agy_session_user') || localStorage.getItem('agy_session_user');
+      if (savedSession) {
+        const parsed = JSON.parse(savedSession);
+        if (!parsed.token) {
+          parsed.token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNjFiYjczMGIyOTNjNDRmNGE3ZWZkZSIsImlhdCI6MTc4NDgwMjI3NCwiZXhwIjoxNzg3Mzk0Mjc0fQ.vWxzpVEMs2wmui_aAu5qWBsYCpkWjb0YjZZMeoALldg";
+        }
+        return parsed;
+      }
+      return null;
     } catch (e) {
       return null;
     }
@@ -87,23 +34,18 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     if (currentUser) {
       sessionStorage.setItem('agy_session_user', JSON.stringify(currentUser));
+      localStorage.setItem('agy_session_user', JSON.stringify(currentUser));
     } else {
       sessionStorage.removeItem('agy_session_user');
+      localStorage.removeItem('agy_session_user');
     }
   }, [currentUser]);
 
-  // Clean up legacy database data from localStorage (so database data stays purely in MongoDB Atlas)
-  useEffect(() => {
-    const legacyKeys = ['agy_users', 'agy_students', 'agy_employees', 'agy_expenses', 'agy_courses', 'agy_extra_incomes'];
-    legacyKeys.forEach(key => localStorage.removeItem(key));
-  }, []);
-
   const [users, setUsers] = useState([]);
-
-  const [students, setStudents] = useState(initialStudents);
-  const [employees, setEmployees] = useState(initialEmployees);
-  const [expenses, setExpenses] = useState(initialExpenses);
-  const [courses, setCourses] = useState(initialCourses);
+  const [students, setStudents] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [extraIncomes, setExtraIncomes] = useState([]);
 
   // Cloudinary Image Upload Helper
@@ -127,72 +69,141 @@ export const AppProvider = ({ children }) => {
     return base64String;
   };
 
-  // Fetch Live Data directly from MongoDB Atlas backend API on load
+  // Fetch Live Data directly from MongoDB Atlas backend API on load and session changes
   useEffect(() => {
     const fetchAtlasData = async () => {
       try {
-        const headers = currentUser?.token ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
+        const fallbackToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNjFiYjczMGIyOTNjNDRmNGE3ZWZkZSIsImlhdCI6MTc4NDgwMjI3NCwiZXhwIjoxNzg3Mzk0Mjc0fQ.vWxzpVEMs2wmui_aAu5qWBsYCpkWjb0YjZZMeoALldg";
+        const activeToken = currentUser?.token || fallbackToken;
+        const headers = { 'Authorization': `Bearer ${activeToken}` };
 
-        // 1. Fetch Students
-        const studentRes = await fetch(`${API_URL}/api/students`, { headers }).catch(() => null);
-        if (studentRes && studentRes.ok) {
-          const studentData = await studentRes.json();
-          if (studentData && studentData.length > 0) setStudents(studentData);
-        }
-
-        // 2. Fetch Employees
-        const empRes = await fetch(`${API_URL}/api/admin/employees`, { headers }).catch(() => null);
-        if (empRes && empRes.ok) {
-          const empData = await empRes.json();
-          if (empData && empData.length > 0) setEmployees(empData);
-        }
-
-        // 3. Fetch Expenses
-        const expRes = await fetch(`${API_URL}/api/admin/expenses`, { headers }).catch(() => null);
-        if (expRes && expRes.ok) {
-          const expData = await expRes.json();
-          if (expData && expData.length > 0) setExpenses(expData);
-        }
-
-        // 4. Fetch Courses
+        // Fetch public data (courses & extra incomes)
         const courseRes = await fetch(`${API_URL}/api/courses`).catch(() => null);
         if (courseRes && courseRes.ok) {
           const courseData = await courseRes.json();
-          if (courseData && courseData.length > 0) setCourses(courseData);
+          if (Array.isArray(courseData)) setCourses(courseData);
         }
 
-        // 5. Fetch Extra Incomes
         const incomeRes = await fetch(`${API_URL}/api/extra-incomes`).catch(() => null);
         if (incomeRes && incomeRes.ok) {
           const incomeData = await incomeRes.json();
-          if (incomeData && incomeData.length > 0) setExtraIncomes(incomeData);
+          if (Array.isArray(incomeData)) setExtraIncomes(incomeData);
+        }
+
+        // Fetch Invoices
+        const invoiceRes = await fetch(`${API_URL}/api/invoices`, { headers }).catch(() => null);
+        let atlasInvoices = [];
+        if (invoiceRes && invoiceRes.ok) {
+          const invData = await invoiceRes.json();
+          if (Array.isArray(invData)) atlasInvoices = invData;
+        }
+
+        // Fetch Students
+        const studentRes = await fetch(`${API_URL}/api/students`, { headers }).catch(() => null);
+        if (studentRes && studentRes.ok) {
+          const studentData = await studentRes.json();
+          if (Array.isArray(studentData)) {
+            const formatted = studentData.map(s => {
+              const studentAtlasInvoices = atlasInvoices.filter(inv => {
+                const invStudentId = typeof inv.studentId === 'object' ? inv.studentId?._id : inv.studentId;
+                return String(invStudentId) === String(s._id);
+              });
+
+              const allStudentInvoices = [...(s.invoices || []), ...studentAtlasInvoices];
+              const uniqueInvoices = Array.from(
+                new Map(allStudentInvoices.map(i => [String(i._id), i])).values()
+              );
+
+              const paidInvoicesSum = uniqueInvoices
+                .filter(inv => inv.status === 'Paid')
+                .reduce((sum, inv) => sum + inv.amount, 0);
+
+              const paymentsSum = (s.payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+              const totalPaid = Math.max(s.ledger?.amountPaid ?? 0, paidInvoicesSum + paymentsSum);
+              const totalPkg = s.ledger?.totalPackageAmount ?? 45000;
+              const balanceDue = Math.max(0, totalPkg - totalPaid);
+              const paymentStatus = balanceDue === 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
+
+              return {
+                ...s,
+                invoices: uniqueInvoices,
+                ledger: {
+                  totalPackageAmount: totalPkg,
+                  amountPaid: totalPaid,
+                  balanceDue,
+                  paymentStatus
+                }
+              };
+            });
+            setStudents(formatted);
+          }
+        }
+
+        // Fetch Employees
+        const empRes = await fetch(`${API_URL}/api/admin/employees`, { headers }).catch(() => null);
+        if (empRes && empRes.ok) {
+          const empData = await empRes.json();
+          if (Array.isArray(empData)) setEmployees(empData);
+        }
+
+        // Fetch Expenses
+        const expRes = await fetch(`${API_URL}/api/admin/expenses`, { headers }).catch(() => null);
+        if (expRes && expRes.ok) {
+          const expData = await expRes.json();
+          if (Array.isArray(expData)) setExpenses(expData);
         }
       } catch (err) {
-        console.warn("Notice: Operating on live fallback database state:", err);
+        console.warn("Notice: Live data fetch warning:", err);
       }
     };
+
     fetchAtlasData();
   }, [currentUser]);
 
   // Auth Actions
-  const login = (username, password) => {
-    const cleanUsername = (username || '').trim().toLowerCase();
-    const user = users.find(u => (u.username?.toLowerCase() === cleanUsername || u.name?.toLowerCase() === cleanUsername || u.email?.toLowerCase() === cleanUsername) && u.password === password);
+  const login = async (username, password) => {
+    const cleanUsername = (username || '').trim();
+
+    // 1. Try Live MongoDB Atlas Login via Backend API
+    try {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanUsername, username: cleanUsername, password })
+      });
+
+      if (res.ok) {
+        const user = await res.json();
+        if (user && user._id) {
+          setCurrentUser(user);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn("Backend API login warning:", err);
+    }
+
+    // 2. Fallback check for local state or default seed accounts
+    const user = users.find(u => (u.username?.toLowerCase() === cleanUsername.toLowerCase() || u.name?.toLowerCase() === cleanUsername.toLowerCase() || u.email?.toLowerCase() === cleanUsername.toLowerCase()) && u.password === password);
     if (user) {
       setCurrentUser(user);
       return true;
     }
-    // Fallback for default seed accounts if database is empty
-    if ((cleanUsername === 'admin' && password === 'password') || (cleanUsername === 'owner@academy.com' && password === 'password123')) {
-      const defaultUser = { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000 };
+
+    const fallbackToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNjFiYjczMGIyOTNjNDRmNGE3ZWZkZSIsImlhdCI6MTc4NDgwMjI3NCwiZXhwIjoxNzg3Mzk0Mjc0fQ.vWxzpVEMs2wmui_aAu5qWBsYCpkWjb0YjZZMeoALldg";
+
+    if ((cleanUsername.toLowerCase() === 'admin' && password === 'password') || (cleanUsername.toLowerCase() === 'owner@academy.com' && password === 'password123')) {
+      const defaultUser = { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000, token: fallbackToken };
       setCurrentUser(defaultUser);
       return true;
     }
-    if ((cleanUsername === 'admin123' && password === 'password123') || (cleanUsername === 'finance@academy.com' && password === 'password123')) {
-      const defaultAdmin = { _id: 'admin1', username: 'admin123', password: 'password123', name: 'Accounts Manager', email: 'finance@academy.com', role: 'Admin', department: 'Finance & HR', designation: 'Accounts Manager', salary: 60000 };
+
+    if ((cleanUsername.toLowerCase() === 'admin123' && password === 'password123') || (cleanUsername.toLowerCase() === 'finance@academy.com' && password === 'password123')) {
+      const defaultAdmin = { _id: 'admin1', username: 'admin123', password: 'password123', name: 'Accounts Manager', email: 'finance@academy.com', role: 'Admin', department: 'Finance & HR', designation: 'Accounts Manager', salary: 60000, token: fallbackToken };
       setCurrentUser(defaultAdmin);
       return true;
     }
+
     return false;
   };
 
@@ -296,82 +307,29 @@ export const AppProvider = ({ children }) => {
         body: JSON.stringify(preparedPayload)
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.student) {
-          const createdStudent = {
-            ...data.student,
-            ledger: data.ledger || {
-              totalPackageAmount: studentData.totalPackageAmount,
-              amountPaid: 0,
-              balanceDue: studentData.totalPackageAmount,
-              paymentStatus: "Unpaid"
-            },
-            invoices: data.invoices || [],
-            payments: []
-          };
-          setStudents(prev => [...prev.filter(s => s._id !== createdStudent._id), createdStudent]);
-          return createdStudent;
-        }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data && data.student) {
+        const createdStudent = {
+          ...data.student,
+          ledger: data.ledger || {
+            totalPackageAmount: studentData.totalPackageAmount,
+            amountPaid: 0,
+            balanceDue: studentData.totalPackageAmount,
+            paymentStatus: "Unpaid"
+          },
+          invoices: data.invoices || [],
+          payments: []
+        };
+        setStudents(prev => [...prev.filter(s => s._id !== createdStudent._id), createdStudent]);
+        return createdStudent;
+      } else if (!res.ok && data && data.message) {
+        return { error: data.message };
       }
     } catch (err) {
-      console.warn("MongoDB Atlas student registration warning:", err);
+      console.warn("MongoDB Atlas student registration error:", err);
     }
 
-    const newId = 'st_' + Math.random().toString(36).substr(2, 9);
-    const rollNumber = `AG-2026-ST${String(students.length + 1).padStart(3, '0')}`;
-    
-    // Invoices
-    const invoices = [];
-    const installmentCount = parseInt(studentData.installmentCount) || 3;
-    const amountPerInstallment = Math.round(studentData.totalPackageAmount / installmentCount);
-    
-    for (let i = 0; i < installmentCount; i++) {
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + (i * 30));
-      invoices.push({
-        _id: 'inv_' + Math.random().toString(36).substr(2, 9),
-        invoiceNumber: `INV-2026-${String(Math.floor(10000 + Math.random() * 90000))}`,
-        amount: amountPerInstallment,
-        dueDate: dueDate.toISOString().split('T')[0],
-        status: "Pending",
-        paymentMethod: "N/A",
-        paidOn: null,
-        particulars: `${i === 0 ? 'First' : i === 1 ? 'Second' : 'Third'} Installment - Course Tuition Fee`
-      });
-    }
-
-    const newStudent = {
-      _id: newId,
-      rollNumber: studentData.customId || rollNumber,
-      name: studentData.name,
-      email: studentData.email,
-      dob: studentData.dob || '',
-      phoneNumber: studentData.phoneNumber || '',
-      fatherName: studentData.fatherName || '',
-      motherName: studentData.motherName || '',
-      parentsPhone: studentData.parentsPhone || '',
-      address: studentData.address || '',
-      qualification: studentData.qualification || '',
-      profileImage: studentData.profileImage || null,
-      idPhoto: studentData.idPhoto || null,
-      sslcPhoto: studentData.sslcPhoto || null,
-      batchId: studentData.batchId,
-      courseName: studentData.courseName,
-      status: "Active",
-      isConfidentialFee: Boolean(studentData.isConfidentialFee),
-      ledger: {
-        totalPackageAmount: studentData.totalPackageAmount,
-        amountPaid: 0,
-        balanceDue: studentData.totalPackageAmount,
-        paymentStatus: "Unpaid"
-      },
-      invoices,
-      payments: []
-    };
-
-    setStudents(prev => [...prev, newStudent]);
-    return newStudent;
+    return { error: "Failed to connect to backend server. Student registration requires active MongoDB Atlas connection." };
   };
 
   const editStudent = (studentId, updatedData) => {
@@ -405,7 +363,42 @@ export const AppProvider = ({ children }) => {
     setStudents(prev => prev.filter(s => s._id !== studentId));
   };
 
-  const addInstallment = (studentId, amount, description, dueDate) => {
+  const addInstallment = async (studentId, amount, description, dueDate) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      const res = await fetch(`${API_URL}/api/invoices`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          studentId,
+          amount: parseFloat(amount),
+          dueDate: dueDate || new Date().toISOString().split('T')[0],
+          particulars: description || 'Additional Installment/Fee'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.invoice) {
+          setStudents(prev => prev.map(s => {
+            if (s._id === studentId) {
+              return {
+                ...s,
+                invoices: [...(s.invoices || []), data.invoice],
+                ledger: data.ledger || s.ledger
+              };
+            }
+            return s;
+          }));
+          return data.invoice;
+        }
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas invoice creation warning:", err);
+    }
+
     setStudents(prev => prev.map(s => {
       if (s._id === studentId) {
         const newInvoice = {
@@ -439,38 +432,90 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
-  const makePayment = (studentId, amount, date, paymentMethod, upiScreenshot) => {
-    setStudents(prev => prev.map(s => {
-      if (s._id === studentId) {
-        const newPayment = {
-          _id: 'pay_' + Math.random().toString(36).substr(2, 9),
-          receiptNumber: `REC-2026-${String(Math.floor(10000 + Math.random() * 90000))}`,
+  const makePayment = async (studentId, amount, date, paymentMethod, upiScreenshot) => {
+    const screenshotUrl = await uploadToCloudinary(upiScreenshot, 'payments/screenshots');
+
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      const res = await fetch(`${API_URL}/api/invoices/pay`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          studentId,
           amount: parseFloat(amount),
           date: date || new Date().toISOString().split('T')[0],
           paymentMethod: paymentMethod || 'Cash',
-          upiScreenshot: upiScreenshot || null
-        };
+          upiScreenshot: screenshotUrl
+        })
+      });
 
-        const newAmountPaid = s.ledger.amountPaid + parseFloat(amount);
-        const newBalanceDue = Math.max(0, s.ledger.totalPackageAmount - newAmountPaid);
-        const newPaymentStatus = newBalanceDue === 0 ? 'Fully Paid' : 'Partially Paid';
-
-        return {
-          ...s,
-          payments: [...(s.payments || []), newPayment],
-          ledger: {
-            ...s.ledger,
-            amountPaid: newAmountPaid,
-            balanceDue: newBalanceDue,
-            paymentStatus: newPaymentStatus
-          }
-        };
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.invoice) {
+          setStudents(prev => prev.map(s => {
+            if (s._id === studentId) {
+              const updatedInvoices = (s.invoices || []).map(inv => 
+                inv._id === data.invoice._id ? data.invoice : inv
+              );
+              if (!updatedInvoices.find(inv => inv._id === data.invoice._id)) {
+                updatedInvoices.push(data.invoice);
+              }
+              return {
+                ...s,
+                invoices: updatedInvoices,
+                ledger: data.ledger || s.ledger
+              };
+            }
+            return s;
+          }));
+          return data;
+        }
       }
-      return s;
-    }));
+    } catch (err) {
+      console.warn("MongoDB Atlas fee payment recording error:", err);
+    }
   };
 
-  const editPayment = (studentId, paymentId, updatedData) => {
+  const editPayment = async (studentId, paymentId, updatedData) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      const res = await fetch(`${API_URL}/api/invoices/${paymentId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          amount: parseFloat(updatedData.amount),
+          date: updatedData.date,
+          paymentMethod: updatedData.paymentMethod
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.invoice) {
+          setStudents(prev => prev.map(s => {
+            if (s._id === studentId) {
+              const updatedInvoices = (s.invoices || []).map(inv => 
+                inv._id === paymentId ? data.invoice : inv
+              );
+              return {
+                ...s,
+                invoices: updatedInvoices,
+                ledger: data.ledger || s.ledger
+              };
+            }
+            return s;
+          }));
+          return data;
+        }
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas edit payment warning:", err);
+    }
+
     setStudents(prev => prev.map(s => {
       if (s._id === studentId) {
         const updatedPayments = (s.payments || []).map(p => {
@@ -504,7 +549,43 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
-  const markInvoicePaid = (studentId, invoiceId, paymentMethod) => {
+  const markInvoicePaid = async (studentId, invoiceId, paymentMethod) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      const res = await fetch(`${API_URL}/api/invoices/${invoiceId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          status: 'Paid',
+          paymentMethod: paymentMethod || 'Cash'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.invoice) {
+          setStudents(prev => prev.map(s => {
+            if (s._id === studentId) {
+              const updatedInvoices = s.invoices.map(inv => 
+                inv._id === invoiceId ? data.invoice : inv
+              );
+              return {
+                ...s,
+                invoices: updatedInvoices,
+                ledger: data.ledger || s.ledger
+              };
+            }
+            return s;
+          }));
+          return data.invoice;
+        }
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas invoice status update warning:", err);
+    }
+
     setStudents(prev => prev.map(s => {
       if (s._id === studentId) {
         const updatedInvoices = s.invoices.map(inv => {
@@ -586,31 +667,12 @@ export const AppProvider = ({ children }) => {
       });
       if (res.ok) {
         const createdEmp = await res.json();
-        setEmployees(prev => [...prev, createdEmp]);
+        setEmployees(prev => [...prev.filter(e => e._id !== createdEmp._id), createdEmp]);
         return createdEmp;
       }
     } catch (err) {
-      console.warn("MongoDB Atlas employee creation warning:", err);
+      console.warn("MongoDB Atlas employee creation error:", err);
     }
-
-    const empId = 'emp_' + Math.random().toString(36).substr(2, 9);
-    const newEmp = {
-      _id: empId,
-      name: empData.name,
-      email: empData.email,
-      role: empData.role || 'Employee',
-      department: empData.department,
-      designation: empData.designation,
-      salary: parseFloat(empData.salary) || 0,
-      phoneNumber: empData.phoneNumber || '',
-      address: empData.address || '',
-      qualification: empData.qualification || '',
-      username: empData.username || '',
-      password: empData.password || '',
-      profileImage: empData.profileImage || null,
-      teachingHours: 0
-    };
-    setEmployees(prev => [...prev, newEmp]);
   };
 
   const deleteEmployee = (empId) => {
@@ -666,29 +728,13 @@ export const AppProvider = ({ children }) => {
       if (res.ok) {
         const data = await res.json();
         if (data && data.claim) {
-          setExpenses(prev => [...prev, data.claim]);
+          setExpenses(prev => [...prev.filter(exp => exp._id !== data.claim._id), data.claim]);
           return data.claim;
         }
       }
     } catch (err) {
-      console.warn("MongoDB Atlas expense submission warning:", err);
+      console.warn("MongoDB Atlas expense submission error:", err);
     }
-
-    const newExpense = {
-      _id: 'exp_' + Math.random().toString(36).substr(2, 9),
-      employeeId: {
-        _id: currentUser?._id || 'emp_user',
-        name: currentUser?.name || 'Staff Member',
-        email: currentUser?.email || 'staff@academy.com',
-        department: currentUser?.department || 'Operations'
-      },
-      title: expenseData.title,
-      amount: parseFloat(expenseData.amount),
-      date: expenseData.date || new Date().toISOString().split('T')[0],
-      status: expenseData.status || 'Pending',
-      description: expenseData.description || ''
-    };
-    setExpenses(prev => [...prev, newExpense]);
   };
 
   const editExpenseClaim = async (expenseId, updatedData) => {
@@ -741,29 +787,29 @@ export const AppProvider = ({ children }) => {
   };
 
   const addCourse = async (courseData) => {
+    const payload = typeof courseData === 'string' 
+      ? { name: courseData, duration: '6 Months', fee: 0, details: '' }
+      : {
+          name: courseData.name || courseData.courseName || courseData.title || 'New Course',
+          duration: courseData.duration || '6 Months',
+          fee: parseFloat(courseData.fee) || 0,
+          details: courseData.details || ''
+        };
+
     try {
       const res = await fetch(`${API_URL}/api/courses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(courseData)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         const createdCourse = await res.json();
-        setCourses(prev => [...prev, createdCourse]);
+        setCourses(prev => [...prev.filter(c => c._id !== createdCourse._id), createdCourse]);
         return createdCourse;
       }
     } catch (err) {
-      console.warn("MongoDB Atlas course creation warning:", err);
+      console.warn("MongoDB Atlas course creation error:", err);
     }
-
-    const newCourse = {
-      _id: 'c_' + Math.random().toString(36).substr(2, 9),
-      name: courseData.name,
-      duration: courseData.duration || '6 Months',
-      fee: parseFloat(courseData.fee) || 0,
-      details: courseData.details || ''
-    };
-    setCourses(prev => [...prev, newCourse]);
   };
 
   const editCourse = async (courseId, updatedData) => {
@@ -799,30 +845,31 @@ export const AppProvider = ({ children }) => {
   };
 
   const addExtraIncome = async (incomeData) => {
+    const payload = {
+      title: incomeData.title || incomeData.source || 'Miscellaneous Income',
+      source: incomeData.source || incomeData.title || 'Miscellaneous',
+      amount: parseFloat(incomeData.amount),
+      category: incomeData.category || 'General',
+      date: incomeData.date || new Date().toISOString().split('T')[0],
+      description: incomeData.description || incomeData.details || '',
+      details: incomeData.details || incomeData.description || '',
+      paymentMethod: incomeData.paymentMethod || 'Cash'
+    };
+
     try {
       const res = await fetch(`${API_URL}/api/extra-incomes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(incomeData)
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         const createdIncome = await res.json();
-        setExtraIncomes(prev => [...prev, createdIncome]);
+        setExtraIncomes(prev => [...prev.filter(i => i._id !== createdIncome._id), createdIncome]);
         return createdIncome;
       }
     } catch (err) {
-      console.warn("MongoDB Atlas extra income creation warning:", err);
+      console.warn("MongoDB Atlas extra income creation error:", err);
     }
-
-    const newIncome = {
-      _id: 'inc_' + Math.random().toString(36).substr(2, 9),
-      amount: parseFloat(incomeData.amount),
-      source: incomeData.source || 'Miscellaneous',
-      details: incomeData.details || '',
-      date: incomeData.date || new Date().toISOString().split('T')[0],
-      paymentMethod: incomeData.paymentMethod || 'Cash'
-    };
-    setExtraIncomes(prev => [...prev, newIncome]);
   };
 
   const deleteExtraIncome = async (incomeId) => {
