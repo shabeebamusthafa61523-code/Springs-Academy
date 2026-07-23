@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import logo from '../assets/logo.png';
+import logo2 from '../assets/logo2.png';
 import toast from 'react-hot-toast';
 import { ArrowRight, UserPlus, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
@@ -49,7 +49,7 @@ export default function Auth() {
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="mx-auto flex items-center justify-center mb-4">
-            <img src={logo} alt="Springs Academy" className="h-20 object-contain" />
+            <img src={logo2} alt="Springs Academy" className="h-20 object-contain" />
           </div>
         </div>
 
