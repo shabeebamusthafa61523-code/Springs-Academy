@@ -66,85 +66,58 @@ const initialCourses = [
 ];
 
 export const AppProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
-
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('agy_users');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.length === 0) {
-        return [
-          { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000 },
-          { _id: 'admin1', username: 'admin123', password: 'password123', name: 'Accounts Manager', email: 'finance@academy.com', role: 'Admin', department: 'Finance & HR', designation: 'Accounts Manager', salary: 60000 }
-        ];
-      }
-      return parsed;
+  // Session Storage for Active Auth Session
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedSession = sessionStorage.getItem('agy_session_user');
+      return savedSession ? JSON.parse(savedSession) : null;
+    } catch (e) {
+      return null;
     }
-    return [
-      { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000 },
-      { _id: 'admin1', username: 'admin123', password: 'password123', name: 'Accounts Manager', email: 'finance@academy.com', role: 'Admin', department: 'Finance & HR', designation: 'Accounts Manager', salary: 60000 }
-    ];
   });
 
-  const [students, setStudents] = useState(() => {
-    const saved = localStorage.getItem('agy_students');
-    return saved ? JSON.parse(saved) : initialStudents;
-  });
-
-  const [employees, setEmployees] = useState(() => {
-    const saved = localStorage.getItem('agy_employees');
-    return saved ? JSON.parse(saved) : initialEmployees;
-  });
-
-  const [expenses, setExpenses] = useState(() => {
-    const saved = localStorage.getItem('agy_expenses');
-    return saved ? JSON.parse(saved) : initialExpenses;
-  });
-
-  const [courses, setCourses] = useState(() => {
-    const saved = localStorage.getItem('agy_courses');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // If still holding old demo courses, reset to new real data
-      const oldNames = ['Full-Stack Web Development', 'Mobile App Development', 'Data Science & AI'];
-      const hasOld = parsed.some(c => oldNames.includes(c.name));
-      if (hasOld) {
-        localStorage.removeItem('agy_courses');
-        return initialCourses;
-      }
-      return parsed;
+  useEffect(() => {
+    if (currentUser) {
+      sessionStorage.setItem('agy_session_user', JSON.stringify(currentUser));
+    } else {
+      sessionStorage.removeItem('agy_session_user');
     }
-    return initialCourses;
-  });
+  }, [currentUser]);
 
-  const [extraIncomes, setExtraIncomes] = useState(() => {
-    const saved = localStorage.getItem('agy_extra_incomes');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  // Clean up legacy database data from localStorage (so database data stays purely in MongoDB Atlas)
   useEffect(() => {
-    localStorage.setItem('agy_users', JSON.stringify(users));
-  }, [users]);
+    const legacyKeys = ['agy_users', 'agy_students', 'agy_employees', 'agy_expenses', 'agy_courses', 'agy_extra_incomes'];
+    legacyKeys.forEach(key => localStorage.removeItem(key));
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('agy_extra_incomes', JSON.stringify(extraIncomes));
-  }, [extraIncomes]);
+  const [users, setUsers] = useState([
+    { _id: 'owner1', username: 'admin', password: 'password', name: 'Director Jane', email: 'owner@academy.com', role: 'Super Admin', department: 'Executive', designation: 'Academy Director', salary: 120000 },
+    { _id: 'admin1', username: 'admin123', password: 'password123', name: 'Accounts Manager', email: 'finance@academy.com', role: 'Admin', department: 'Finance & HR', designation: 'Accounts Manager', salary: 60000 }
+  ]);
 
-  useEffect(() => {
-    localStorage.setItem('agy_students', JSON.stringify(students));
-  }, [students]);
+  const [students, setStudents] = useState(initialStudents);
+  const [employees, setEmployees] = useState(initialEmployees);
+  const [expenses, setExpenses] = useState(initialExpenses);
+  const [courses, setCourses] = useState(initialCourses);
+  const [extraIncomes, setExtraIncomes] = useState([]);
 
+  // Fetch Live Data directly from MongoDB Atlas backend API on load
   useEffect(() => {
-    localStorage.setItem('agy_employees', JSON.stringify(employees));
-  }, [employees]);
-
-  useEffect(() => {
-    localStorage.setItem('agy_expenses', JSON.stringify(expenses));
-  }, [expenses]);
-
-  useEffect(() => {
-    localStorage.setItem('agy_courses', JSON.stringify(courses));
-  }, [courses]);
+    const fetchAtlasData = async () => {
+      try {
+        const studentRes = await fetch(`${API_URL}/api/students`);
+        if (studentRes.ok) {
+          const studentData = await studentRes.json();
+          if (studentData && studentData.length > 0) {
+            setStudents(studentData);
+          }
+        }
+      } catch (err) {
+        console.warn("Notice: Operating on live fallback database state:", err);
+      }
+    };
+    fetchAtlasData();
+  }, []);
 
   // Auth Actions
   const login = (username, password) => {
@@ -158,24 +131,12 @@ export const AppProvider = ({ children }) => {
 
   const register = async (username, password, role = 'Super Admin') => {
     const cleanUsername = (username || '').trim();
-    if (users.find(u => u.username && u.username.toLowerCase() === cleanUsername.toLowerCase())) {
-      return false; // Username exists
-    }
-
     const userEmail = `${cleanUsername.toLowerCase().replace(/\s+/g, '')}@academy.com`;
-    const newUser = {
-      _id: 'u_' + Math.random().toString(36).substr(2, 9),
-      username: cleanUsername,
-      name: cleanUsername,
-      email: userEmail,
-      password,
-      role: role || 'Super Admin',
-      department: role === 'Super Admin' ? 'Executive' : 'Finance & HR',
-      designation: role === 'Super Admin' ? 'Academy Director' : 'Accounts Manager',
-      salary: role === 'Super Admin' ? 120000 : 60000
-    };
+    const defaultDept = role === 'Super Admin' ? 'Executive' : 'Finance & HR';
+    const defaultDesig = role === 'Super Admin' ? 'Academy Director' : 'Accounts Manager';
+    const defaultSalary = role === 'Super Admin' ? 120000 : 60000;
 
-    // Live MongoDB Atlas Document Creation via Render API
+    // Try backend API registration first
     try {
       const res = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
@@ -186,18 +147,60 @@ export const AppProvider = ({ children }) => {
           email: userEmail,
           password,
           role: role || 'Super Admin',
-          department: newUser.department,
-          designation: newUser.designation,
-          salary: newUser.salary
+          department: defaultDept,
+          designation: defaultDesig,
+          salary: defaultSalary
         })
       });
-      const data = await res.json();
-      if (data && data._id) {
-        newUser._id = data._id;
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data._id) {
+          const registeredUser = {
+            _id: data._id,
+            username: data.username || cleanUsername,
+            name: data.name || cleanUsername,
+            email: data.email || userEmail,
+            password,
+            role: data.role || role,
+            department: data.department || defaultDept,
+            designation: data.designation || defaultDesig,
+            salary: data.salary || defaultSalary
+          };
+          setUsers(prev => {
+            const filtered = prev.filter(u => u.username?.toLowerCase() !== cleanUsername.toLowerCase());
+            return [...filtered, registeredUser];
+          });
+          return registeredUser;
+        }
+      } else if (res.status === 400) {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.message && errData.message.includes('already exists')) {
+          // If backend says already exists, check local state
+          const localMatch = users.find(u => u.username && u.username.toLowerCase() === cleanUsername.toLowerCase());
+          if (localMatch) return false;
+        }
       }
     } catch (err) {
-      console.warn("MongoDB Cloud Sync Warning:", err);
+      console.warn("Backend API sync warning:", err);
     }
+
+    // Local fallback check
+    if (users.find(u => u.username && u.username.toLowerCase() === cleanUsername.toLowerCase())) {
+      return false; // Username exists locally
+    }
+
+    const newUser = {
+      _id: 'u_' + Math.random().toString(36).substr(2, 9),
+      username: cleanUsername,
+      name: cleanUsername,
+      email: userEmail,
+      password,
+      role: role || 'Super Admin',
+      department: defaultDept,
+      designation: defaultDesig,
+      salary: defaultSalary
+    };
 
     setUsers(prev => [...prev, newUser]);
     return newUser;

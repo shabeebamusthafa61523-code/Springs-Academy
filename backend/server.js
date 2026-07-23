@@ -39,10 +39,11 @@ app.use('/api/upload', uploadRoutes);
 const seedDatabase = async () => {
   try {
     const userCount = await User.countDocuments();
+    let employee = null;
+
     if (userCount === 0) {
       console.log('No users found. Seeding default accounts...');
       
-      // Create Users
       const superAdmin = await User.create({
         name: 'Director Jane',
         email: 'owner@academy.com',
@@ -63,7 +64,7 @@ const seedDatabase = async () => {
         salary: 60000
       });
 
-      const employee = await User.create({
+      employee = await User.create({
         name: 'Instructor Bob',
         email: 'faculty@academy.com',
         password: 'password123',
@@ -74,12 +75,14 @@ const seedDatabase = async () => {
         teachingHours: 32
       });
 
-      console.log('Seeded Users:');
-      console.log('  Super Admin: owner@academy.com (password123)');
-      console.log('  Admin: finance@academy.com (password123)');
-      console.log('  Employee: faculty@academy.com (password123)');
+      console.log('Seeded Users: owner@academy.com, finance@academy.com, faculty@academy.com');
+    } else {
+      employee = await User.findOne({ role: 'Employee' });
+    }
 
-      // Create Students & Ledgers & Invoices
+    const studentCount = await Student.countDocuments();
+    if (studentCount === 0) {
+      console.log('Seeding initial student records...');
       const student1 = await Student.create({
         rollNumber: 'AG-2026-ST001',
         name: 'Alice Johnson',
@@ -89,7 +92,7 @@ const seedDatabase = async () => {
         status: 'Active'
       });
 
-      const ledger1 = await FeeLedger.create({
+      await FeeLedger.create({
         studentId: student1._id,
         totalPackageAmount: 60000,
         amountPaid: 20000,
@@ -135,7 +138,7 @@ const seedDatabase = async () => {
         status: 'Active'
       });
 
-      const ledger2 = await FeeLedger.create({
+      await FeeLedger.create({
         studentId: student2._id,
         totalPackageAmount: 50000,
         amountPaid: 0,
@@ -160,8 +163,10 @@ const seedDatabase = async () => {
         status: 'Pending',
         particulars: 'Second Installment - Mobile Course'
       });
+    }
 
-      // Create some center expense claims
+    const expenseCount = await Expense.countDocuments();
+    if (expenseCount === 0 && employee) {
       await Expense.create({
         employeeId: employee._id,
         title: 'Whiteboard Markers & Stationary',
@@ -179,11 +184,11 @@ const seedDatabase = async () => {
         status: 'Pending',
         description: 'Replacement of faulty lab gateway'
       });
-
-      console.log('Seeded initial mock database records.');
     }
+
+    console.log('Database initialization complete.');
   } catch (err) {
-    console.error('Seeding error:', err);
+    console.error('Seeding error (handled gracefully):', err.message);
   }
 };
 
