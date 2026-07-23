@@ -24,13 +24,23 @@ export const registerStudent = async (req, res) => {
 
     // 1. Create Student
     const student = await Student.create({
-      rollNumber,
+      rollNumber: req.body.customId || rollNumber,
       name,
       email,
       batchId,
       courseName,
       status: 'Active',
-      isConfidentialFee: req.body.isConfidentialFee || false
+      isConfidentialFee: req.body.isConfidentialFee || false,
+      dob: req.body.dob || '',
+      phoneNumber: req.body.phoneNumber || '',
+      fatherName: req.body.fatherName || '',
+      motherName: req.body.motherName || '',
+      parentsPhone: req.body.parentsPhone || '',
+      address: req.body.address || '',
+      qualification: req.body.qualification || '',
+      profileImage: req.body.profileImage || null,
+      idPhoto: req.body.idPhoto || null,
+      sslcPhoto: req.body.sslcPhoto || null
     });
 
     // 2. Create Student Fees Ledger

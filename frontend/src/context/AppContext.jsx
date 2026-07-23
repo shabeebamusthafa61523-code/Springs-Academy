@@ -213,7 +213,41 @@ export const AppProvider = ({ children }) => {
     setCurrentUser(null);
   };
 
-  const addStudent = (studentData) => {
+  const addStudent = async (studentData) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) {
+        headers['Authorization'] = `Bearer ${currentUser.token}`;
+      }
+
+      const res = await fetch(`${API_URL}/api/students`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(studentData)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.student) {
+          const createdStudent = {
+            ...data.student,
+            ledger: data.ledger || {
+              totalPackageAmount: studentData.totalPackageAmount,
+              amountPaid: 0,
+              balanceDue: studentData.totalPackageAmount,
+              paymentStatus: "Unpaid"
+            },
+            invoices: data.invoices || [],
+            payments: []
+          };
+          setStudents(prev => [...prev.filter(s => s._id !== createdStudent._id), createdStudent]);
+          return createdStudent;
+        }
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas student registration warning:", err);
+    }
+
     const newId = 'st_' + Math.random().toString(36).substr(2, 9);
     const rollNumber = `AG-2026-ST${String(students.length + 1).padStart(3, '0')}`;
     
