@@ -76,6 +76,7 @@ export const recordFeePayment = async (req, res) => {
       oldestInvoice.status = 'Paid';
       oldestInvoice.paymentMethod = paymentMethod || 'Cash';
       oldestInvoice.paidOn = date ? new Date(date) : new Date();
+      if (upiScreenshot) oldestInvoice.upiScreenshot = upiScreenshot;
       await oldestInvoice.save();
       invoiceUpdated = oldestInvoice;
     } else {
@@ -90,6 +91,7 @@ export const recordFeePayment = async (req, res) => {
         status: 'Paid',
         paymentMethod: paymentMethod || 'Cash',
         paidOn: date ? new Date(date) : new Date(),
+        upiScreenshot: upiScreenshot || null,
         particulars: `Fee Collection Receipt - ${paymentMethod || 'Cash'}`
       });
     }
@@ -150,7 +152,10 @@ export const createInvoice = async (req, res) => {
 // Get all invoices
 export const getInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find({}).populate('studentId', 'name rollNumber email');
+    let invoices = await Invoice.find({}).populate('studentId', 'name rollNumber email isConfidentialFee');
+    if (req.user && req.user.role !== 'Super Admin') {
+      invoices = invoices.filter(inv => !inv.studentId || !inv.studentId.isConfidentialFee);
+    }
     res.json(invoices);
   } catch (error) {
     res.status(500).json({ message: error.message });

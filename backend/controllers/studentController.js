@@ -111,7 +111,11 @@ export const registerStudent = async (req, res) => {
 // Get all students along with their ledger and invoices
 export const getStudents = async (req, res) => {
   try {
-    const students = await Student.find({});
+    let query = {};
+    if (req.user && req.user.role !== 'Super Admin') {
+      query.isConfidentialFee = { $ne: true };
+    }
+    const students = await Student.find(query);
     const studentsWithLedger = [];
 
     for (const student of students) {
@@ -185,6 +189,64 @@ export const overrideLedger = async (req, res) => {
 
     await ledger.save();
     res.json({ message: 'Ledger adjusted successfully', ledger });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update Student Details & Confidential Visibility
+export const updateStudent = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const student = await Student.findById(id);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    if (req.body.isConfidentialFee !== undefined) {
+      if (req.user && req.user.role === 'Super Admin') {
+        student.isConfidentialFee = Boolean(req.body.isConfidentialFee);
+      }
+    }
+
+    if (req.body.name) student.name = req.body.name;
+    if (req.body.email) student.email = req.body.email;
+    if (req.body.phoneNumber !== undefined) student.phoneNumber = req.body.phoneNumber;
+    if (req.body.dob !== undefined) student.dob = req.body.dob;
+    if (req.body.address !== undefined) student.address = req.body.address;
+    if (req.body.qualification !== undefined) student.qualification = req.body.qualification;
+    if (req.body.fatherName !== undefined) student.fatherName = req.body.fatherName;
+    if (req.body.motherName !== undefined) student.motherName = req.body.motherName;
+    if (req.body.parentsPhone !== undefined) student.parentsPhone = req.body.parentsPhone;
+    if (req.body.courseName) student.courseName = req.body.courseName;
+    if (req.body.batchId) student.batchId = req.body.batchId;
+    if (req.body.profileImage !== undefined) student.profileImage = req.body.profileImage;
+    if (req.body.idPhoto !== undefined) student.idPhoto = req.body.idPhoto;
+    if (req.body.sslcPhoto !== undefined) student.sslcPhoto = req.body.sslcPhoto;
+
+    await student.save();
+
+    let ledger = await FeeLedger.findOne({ studentId: student._id });
+    const invoices = await Invoice.find({ studentId: student._id });
+
+    res.json({
+      ...student.toObject(),
+      ledger,
+      invoices
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete Student
+export const deleteStudent = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await Student.findByIdAndDelete(id);
+    await FeeLedger.deleteMany({ studentId: id });
+    await Invoice.deleteMany({ studentId: id });
+    res.json({ message: 'Student and related records deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

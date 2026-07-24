@@ -19,11 +19,7 @@ export const AppProvider = ({ children }) => {
     try {
       const savedSession = sessionStorage.getItem('agy_session_user') || localStorage.getItem('agy_session_user');
       if (savedSession) {
-        const parsed = JSON.parse(savedSession);
-        if (!parsed.token) {
-          parsed.token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNjFiYjczMGIyOTNjNDRmNGE3ZWZkZSIsImlhdCI6MTc4NDgwMjI3NCwiZXhwIjoxNzg3Mzk0Mjc0fQ.vWxzpVEMs2wmui_aAu5qWBsYCpkWjb0YjZZMeoALldg";
-        }
-        return parsed;
+        return JSON.parse(savedSession);
       }
       return null;
     } catch (e) {
@@ -73,9 +69,7 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     const fetchAtlasData = async () => {
       try {
-        const fallbackToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNjFiYjczMGIyOTNjNDRmNGE3ZWZkZSIsImlhdCI6MTc4NDgwMjI3NCwiZXhwIjoxNzg3Mzk0Mjc0fQ.vWxzpVEMs2wmui_aAu5qWBsYCpkWjb0YjZZMeoALldg";
-        const activeToken = currentUser?.token || fallbackToken;
-        const headers = { 'Authorization': `Bearer ${activeToken}` };
+        const headers = currentUser?.token ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
 
         // Fetch public data (courses & extra incomes)
         const courseRes = await fetch(`${API_URL}/api/courses`).catch(() => null);
@@ -332,7 +326,8 @@ export const AppProvider = ({ children }) => {
     return { error: "Failed to connect to backend server. Student registration requires active MongoDB Atlas connection." };
   };
 
-  const editStudent = (studentId, updatedData) => {
+  const editStudent = async (studentId, updatedData) => {
+    // 1. Update local state
     setStudents(prev => prev.map(s => {
       if (s._id === studentId) {
         return {
@@ -357,10 +352,41 @@ export const AppProvider = ({ children }) => {
       }
       return s;
     }));
+
+    // 2. Persist directly to MongoDB Atlas backend API
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      const res = await fetch(`${API_URL}/api/students/${studentId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updatedData)
+      });
+
+      if (res.ok) {
+        const updatedStudentFromAtlas = await res.json();
+        setStudents(prev => prev.map(s => s._id === studentId ? { ...s, ...updatedStudentFromAtlas } : s));
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas edit student error:", err);
+    }
   };
 
-  const deleteStudent = (studentId) => {
+  const deleteStudent = async (studentId) => {
     setStudents(prev => prev.filter(s => s._id !== studentId));
+
+    try {
+      const headers = {};
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      await fetch(`${API_URL}/api/students/${studentId}`, {
+        method: 'DELETE',
+        headers
+      });
+    } catch (err) {
+      console.warn("MongoDB Atlas delete student error:", err);
+    }
   };
 
   const addInstallment = async (studentId, amount, description, dueDate) => {
@@ -657,13 +683,16 @@ export const AppProvider = ({ children }) => {
 
   const addEmployee = async (empData) => {
     try {
+      const profileImage = await uploadToCloudinary(empData.profileImage, 'employees/profiles');
+      const preparedPayload = { ...empData, profileImage };
+
       const headers = { 'Content-Type': 'application/json' };
       if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
 
       const res = await fetch(`${API_URL}/api/admin/employees`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(empData)
+        body: JSON.stringify(preparedPayload)
       });
       if (res.ok) {
         const createdEmp = await res.json();
@@ -680,6 +709,12 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateEmployeeHRRecord = async (empId, hrData) => {
+    let profileImage = hrData.profileImage;
+    if (hrData.profileImage) {
+      profileImage = await uploadToCloudinary(hrData.profileImage, 'employees/profiles');
+    }
+    const preparedData = { ...hrData, profileImage };
+
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
@@ -687,7 +722,7 @@ export const AppProvider = ({ children }) => {
       await fetch(`${API_URL}/api/admin/employees/${empId}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(hrData)
+        body: JSON.stringify(preparedData)
       });
     } catch (err) {
       console.warn("MongoDB Atlas employee HR update warning:", err);

@@ -32,6 +32,10 @@ const invoiceSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  upiScreenshot: {
+    type: String,
+    default: null
+  },
   particulars: {
     type: String,
     default: 'Installment / Course Tuition Fee'

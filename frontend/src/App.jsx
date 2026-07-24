@@ -1127,11 +1127,12 @@ export default function App() {
     doc.text("Springs Academy • Technical & Commercial Education • www.springsacademy.com", 105, 281, { align: "center" });
 
     // Save File
-    doc.save(`${(student.name || 'Student').replace(/\s+/g, '_')}_Receipt_${payment.receiptNumber || '001'}.pdf`);
+    const sanitizedStudentName = (student.name || 'Student').replace(/[^a-zA-Z0-9_-]/g, '_');
+    doc.save(`${sanitizedStudentName}_Receipt_${payment.receiptNumber || '001'}.pdf`);
     toast.success("Payment receipt PDF downloaded!");
   };
 
-  const allPayments = students.reduce((acc, student) => {
+  const allPayments = visibleStudents.reduce((acc, student) => {
     if (currentUser?.role !== 'Super Admin' && student.isConfidentialFee) {
       return acc;
     }
@@ -1205,7 +1206,7 @@ export default function App() {
       <div className="bg-slate-900/40 border-b border-slate-800/60 px-8 py-3.5 flex flex-wrap justify-between items-center text-xs">
         <div className="flex items-center gap-2 text-slate-300">
           <UserCheck className="w-4 h-4 text-blue-400" />
-          <span>Logged in as: <strong>{currentUser.name}</strong> ({currentUser.username})</span>
+          <span>Logged in as: <strong>{currentUser.name}</strong> ({currentUser.role || currentUser.username})</span>
           <span className="text-slate-600">|</span>
           <span>Dept: {currentUser.department}</span>
           <span className="text-slate-600">|</span>
@@ -1220,11 +1221,8 @@ export default function App() {
         
         {/* Navigation Sidebar */}
         <aside 
-          onClick={() => {
-            setIsSidebarCollapsed(prev => !prev);
-          }}
           className={`transition-all duration-300 ease-in-out w-full md:flex flex-col gap-1.5 border-r border-slate-900/50 bg-slate-900/10 ${
-            isSidebarCollapsed ? 'md:w-20 p-4 cursor-pointer' : 'md:w-64 p-6'
+            isSidebarCollapsed ? 'md:w-20 p-4' : 'md:w-64 p-6'
           }`}
         >
           <button
@@ -2501,7 +2499,7 @@ export default function App() {
               return (student.invoices && student.invoices[0]) ? (student.invoices[0].dueDate || '') : '';
             };
 
-            const activeFeeStudents = currentUser?.role === 'Super Admin' ? students : students.filter(s => !s.isConfidentialFee);
+            const activeFeeStudents = visibleStudents;
             const filteredFeeStudents = activeFeeStudents.filter(student => {
               const query = feeCollectionSearch.toLowerCase();
               const matchesSearch = !query ||
@@ -2908,7 +2906,11 @@ export default function App() {
                             </td>
                             <td className="py-3 px-2">
                               <span className={`px-2 py-0.5 rounded text-[9px] font-semibold ${
-                                emp.role === 'Admin' ? 'bg-blue-500/15 text-blue-400' : 'bg-slate-500/15 text-slate-400'
+                                emp.role === 'Super Admin' 
+                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' 
+                                  : emp.role === 'Admin' 
+                                  ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20' 
+                                  : 'bg-slate-500/15 text-slate-400 border border-slate-500/20'
                               }`}>
                                 {emp.role}
                               </span>
@@ -3683,7 +3685,25 @@ export default function App() {
         onClose={() => { setIsStudentProfileModalOpen(false); setViewingStudent(null); setProfileModalMode('view'); }}
         title={profileModalMode === 'edit' ? "Edit Student Profile" : profileModalMode === 'addInstallment' ? "Add Installment" : "Student Profile"}
       >
-        {viewingStudent && profileModalMode === 'view' && (
+        {viewingStudent && viewingStudent.isConfidentialFee && currentUser?.role !== 'Super Admin' ? (
+          <div className="py-12 px-6 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto text-2xl">
+              🔒
+            </div>
+            <h3 className="text-lg font-bold text-white">Confidential Student Record</h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              Super Admin has restricted visibility for this student. Personal details, documents, and fee visibility are strictly hidden. Only Super Admin can access this record.
+            </p>
+            <button
+              onClick={() => { setIsStudentProfileModalOpen(false); setViewingStudent(null); setProfileModalMode('view'); }}
+              className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
+            {viewingStudent && profileModalMode === 'view' && (
           <div className="space-y-6">
             <div className="flex items-center gap-4 border-b border-slate-800 pb-4">
               {viewingStudent.profileImage ? (
@@ -3869,9 +3889,9 @@ export default function App() {
         )}
 
         {viewingStudent && profileModalMode === 'edit' && editingStudentForm && (
-          <form onSubmit={(e) => {
+          <form onSubmit={async (e) => {
             e.preventDefault();
-            editStudent(viewingStudent._id, editingStudentForm);
+            await editStudent(viewingStudent._id, editingStudentForm);
             setViewingStudent({ ...viewingStudent, ...editingStudentForm });
             setProfileModalMode('view');
           }} className="space-y-4 text-sm max-h-[60vh] overflow-y-auto pr-2">
@@ -4061,6 +4081,8 @@ export default function App() {
               <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 font-semibold transition-all cursor-pointer">Record Payment</button>
             </div>
           </form>
+        )}
+          </>
         )}
       </Modal>
 
@@ -4327,8 +4349,9 @@ export default function App() {
                 onChange={(e) => setEmployeeForm({...employeeForm, role: e.target.value})}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
               >
-                <option value="Employee">Employee</option>
+                <option value="Super Admin">Super Admin</option>
                 <option value="Admin">Admin</option>
+                <option value="Employee">Employee</option>
               </select>
             </div>
             <div>
@@ -4482,8 +4505,9 @@ export default function App() {
                 onChange={(e) => setHrForm({...hrForm, role: e.target.value})}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
               >
-                <option value="Employee">Employee</option>
+                <option value="Super Admin">Super Admin</option>
                 <option value="Admin">Admin</option>
+                <option value="Employee">Employee</option>
               </select>
             </div>
             <div>

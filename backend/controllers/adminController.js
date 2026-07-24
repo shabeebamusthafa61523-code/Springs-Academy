@@ -4,7 +4,7 @@ import Expense from '../models/Expense.js';
 // Get list of all staff / employees
 export const getEmployees = async (req, res) => {
   try {
-    const employees = await User.find({ role: { $in: ['Admin', 'Employee'] } }).select('-password');
+    const employees = await User.find({}).select('-password');
     res.json(employees);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -13,7 +13,7 @@ export const getEmployees = async (req, res) => {
 
 // Create new staff / employee
 export const createEmployee = async (req, res) => {
-  const { name, email, role, department, designation, salary } = req.body;
+  const { name, username, email, password, role, department, designation, salary } = req.body;
   try {
     const userExists = await User.findOne({ email });
     if (userExists) {
@@ -22,9 +22,9 @@ export const createEmployee = async (req, res) => {
 
     const employee = await User.create({
       name,
-      username: name.toLowerCase().replace(/\s+/g, ''),
+      username: username || name.toLowerCase().replace(/\s+/g, ''),
       email,
-      password: 'password123',
+      password: password || 'password123',
       role: role || 'Employee',
       department: department || 'Academic',
       designation: designation || 'Staff',
@@ -40,7 +40,7 @@ export const createEmployee = async (req, res) => {
 // Update Employee HR Data (Super Admin / Admin)
 export const updateEmployeeHR = async (req, res) => {
   const { employeeId } = req.params;
-  const { department, designation, salary } = req.body;
+  const { name, email, role, username, password, department, designation, salary, phoneNumber, address, qualification } = req.body;
 
   try {
     const employee = await User.findById(employeeId);
@@ -48,9 +48,17 @@ export const updateEmployeeHR = async (req, res) => {
       return res.status(404).json({ message: 'Employee not found' });
     }
 
+    if (name !== undefined) employee.name = name;
+    if (email !== undefined) employee.email = email;
+    if (role !== undefined) employee.role = role;
+    if (username !== undefined) employee.username = username;
+    if (password !== undefined && password.trim() !== '') employee.password = password;
     if (department !== undefined) employee.department = department;
     if (designation !== undefined) employee.designation = designation;
     if (salary !== undefined) employee.salary = salary;
+    if (phoneNumber !== undefined) employee.phoneNumber = phoneNumber;
+    if (address !== undefined) employee.address = address;
+    if (qualification !== undefined) employee.qualification = qualification;
 
     await employee.save();
     res.json({ message: 'Employee HR records updated successfully', employee });
