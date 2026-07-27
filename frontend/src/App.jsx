@@ -1045,48 +1045,22 @@ export default function App() {
     doc.setTextColor(...primaryDark);
     doc.text(`${(payment.amount || 0).toLocaleString()}`, 190, 99, { align: "right" });
 
-    // Financial Summary Panel
-    const totalPkg = student.ledger?.totalPackageAmount || 0;
-    const paidAmt = student.ledger?.amountPaid || 0;
-    const balanceDue = student.ledger?.balanceDue || 0;
 
+    // Financial Summary Panel — Amount Only
     doc.setFillColor(...bgLight);
     doc.setDrawColor(...borderColor);
-    doc.roundedRect(108, 111, 87, 34, 2, 2, 'FD');
+    doc.roundedRect(108, 111, 87, 18, 2, 2, 'FD');
 
-    doc.setFont("helvetica", "normal");
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
     doc.setTextColor(...textMuted);
-    doc.text("Total Course Package:", 112, 117);
-    doc.setTextColor(...textDark);
-    doc.text(`${totalPkg.toLocaleString()}`, 190, 117, { align: "right" });
-
-    doc.setTextColor(...textMuted);
-    doc.text("Total Paid to Date:", 112, 122.5);
-    doc.setTextColor(22, 163, 74);
-    doc.text(`${paidAmt.toLocaleString()}`, 190, 122.5, { align: "right" });
+    doc.text("Amount Paid (This Receipt):", 112, 118);
 
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(...textDark);
-    doc.text("Amount Paid (This Receipt):", 112, 128);
+    doc.setFontSize(12);
     doc.setTextColor(...primaryBlue);
-    doc.text(`${(payment.amount || 0).toLocaleString()}`, 190, 128, { align: "right" });
+    doc.text(`INR ${(payment.amount || 0).toLocaleString()}`, 190, 124, { align: "right" });
 
-    doc.setDrawColor(...borderColor);
-    doc.setLineWidth(0.3);
-    doc.line(112, 132, 191, 132);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...textDark);
-    doc.text("Balance Remaining:", 112, 138);
-
-    if (balanceDue > 0) {
-      doc.setTextColor(220, 38, 38);
-    } else {
-      doc.setTextColor(22, 163, 74);
-    }
-    doc.text(`${balanceDue.toLocaleString()}`, 190, 138, { align: "right" });
 
     // Terms & Conditions + Authorized Signatory
     doc.setFont("helvetica", "bold");
