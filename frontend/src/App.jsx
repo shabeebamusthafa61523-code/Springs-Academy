@@ -170,7 +170,7 @@ export default function App() {
 
   // Input states
   const [studentForm, setStudentForm] = useState({ 
-    name: '', email: '', dob: '', customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, 
+    name: '', email: '', dob: '', admissionDate: new Date().toISOString().split('T')[0], customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, 
     fatherName: '', motherName: '', parentsPhone: '', idPhoto: null, sslcPhoto: null,
     fatherPhone: '', motherPhone: '', // Compatibility helper
     courseName: '', batchId: '', totalPackageAmount: 45000, installmentCount: 3 
@@ -199,7 +199,7 @@ export default function App() {
       return;
     }
 
-    setStudentForm({ name: '', email: '', dob: '', customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, fatherName: '', motherName: '', parentsPhone: '', idPhoto: null, sslcPhoto: null, courseName: '', batchId: '', totalPackageAmount: 45000, installmentCount: 3, isConfidentialFee: false });
+    setStudentForm({ name: '', email: '', dob: '', admissionDate: new Date().toISOString().split('T')[0], customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, fatherName: '', motherName: '', parentsPhone: '', idPhoto: null, sslcPhoto: null, courseName: '', batchId: '', totalPackageAmount: 45000, installmentCount: 3, isConfidentialFee: false });
     setIsStudentModalOpen(false);
     toast.success("Student registered successfully! Invoices generated.");
   };
@@ -3448,11 +3448,15 @@ export default function App() {
         title="Register New Student"
       >
         <form onSubmit={handleStudentSubmit} className="space-y-4 text-sm max-h-[75vh] overflow-y-auto pr-2">
-          {/* Row 1: Name, DOB, Custom ID */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Row 1: Name, Admission Date, DOB, Custom ID */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
               <label className="block text-slate-400 font-medium mb-1">Full Name *</label>
               <input type="text" required placeholder="e.g. Jane Doe" value={studentForm.name} onChange={(e) => setStudentForm({...studentForm, name: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label className="block text-slate-400 font-medium mb-1">Admission Date</label>
+              <input type="date" value={studentForm.admissionDate} onChange={(e) => setStudentForm({...studentForm, admissionDate: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
             </div>
             <div>
               <label className="block text-slate-400 font-medium mb-1">Date of Birth</label>
@@ -3706,6 +3710,10 @@ export default function App() {
                 <span className="text-slate-300">{viewingStudent.phoneNumber || '-'}</span>
               </div>
               <div>
+                <span className="block text-xs text-slate-500 uppercase font-semibold">Admission Date</span>
+                <span className="text-slate-300">{viewingStudent.admissionDate || '-'}</span>
+              </div>
+              <div>
                 <span className="block text-xs text-slate-500 uppercase font-semibold">Date of Birth</span>
                 <span className="text-slate-300">{viewingStudent.dob || '-'}</span>
               </div>
@@ -3884,7 +3892,11 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-slate-400 font-medium mb-1">Admission Date</label>
+                <input type="date" value={editingStudentForm.admissionDate || ''} onChange={(e) => setEditingStudentForm({...editingStudentForm, admissionDate: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-blue-500" />
+              </div>
               <div>
                 <label className="block text-slate-400 font-medium mb-1">Date of Birth</label>
                 <input type="date" value={editingStudentForm.dob || ''} onChange={(e) => setEditingStudentForm({...editingStudentForm, dob: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-blue-500" />

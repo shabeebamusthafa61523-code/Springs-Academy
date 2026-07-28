@@ -34,6 +34,7 @@ export const registerStudent = async (req, res) => {
       status: 'Active',
       isConfidentialFee: req.body.isConfidentialFee || false,
       dob: req.body.dob || '',
+      admissionDate: req.body.admissionDate || new Date().toISOString().split('T')[0],
       phoneNumber: req.body.phoneNumber || '',
       fatherName: req.body.fatherName || '',
       motherName: req.body.motherName || '',
@@ -215,6 +216,7 @@ export const updateStudent = async (req, res) => {
     if (req.body.email) student.email = req.body.email;
     if (req.body.phoneNumber !== undefined) student.phoneNumber = req.body.phoneNumber;
     if (req.body.dob !== undefined) student.dob = req.body.dob;
+    if (req.body.admissionDate !== undefined) student.admissionDate = req.body.admissionDate;
     if (req.body.address !== undefined) student.address = req.body.address;
     if (req.body.qualification !== undefined) student.qualification = req.body.qualification;
     if (req.body.fatherName !== undefined) student.fatherName = req.body.fatherName;

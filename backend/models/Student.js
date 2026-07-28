@@ -32,6 +32,7 @@ const studentSchema = new mongoose.Schema({
     default: false
   },
   dob: { type: String, default: '' },
+  admissionDate: { type: String, default: () => new Date().toISOString().split('T')[0] },
   phoneNumber: { type: String, default: '' },
   fatherName: { type: String, default: '' },
   motherName: { type: String, default: '' },
