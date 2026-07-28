@@ -15,9 +15,11 @@ export const registerStudent = async (req, res) => {
   const { name, email, batchId, courseName, totalPackageAmount, installments } = req.body;
 
   try {
-    const studentExists = await Student.findOne({ email });
-    if (studentExists) {
-      return res.status(400).json({ message: 'Student with this email already exists' });
+    if (email && email.trim() !== '') {
+      const studentExists = await Student.findOne({ email: email.trim() });
+      if (studentExists) {
+        return res.status(400).json({ message: 'Student with this email already exists' });
+      }
     }
 
     const rollNumber = await generateRollNumber();
@@ -26,8 +28,8 @@ export const registerStudent = async (req, res) => {
     const student = await Student.create({
       rollNumber: req.body.customId || rollNumber,
       name,
-      email,
-      batchId,
+      email: email ? email.trim() : '',
+      batchId: batchId ? batchId.trim() : '',
       courseName,
       status: 'Active',
       isConfidentialFee: req.body.isConfidentialFee || false,

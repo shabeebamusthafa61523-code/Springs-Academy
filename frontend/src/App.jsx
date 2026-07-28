@@ -187,7 +187,7 @@ export default function App() {
 
   const handleStudentSubmit = async (e) => {
     e.preventDefault();
-    if (!studentForm.name || !studentForm.email) return;
+    if (!studentForm.name) return;
     const submissionData = {
       ...studentForm,
       isConfidentialFee: currentUser?.role === 'Super Admin' ? Boolean(studentForm.isConfidentialFee) : false
@@ -3483,8 +3483,8 @@ export default function App() {
           {/* Row 3: Email Address, Phone Number, Qualification */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-slate-400 font-medium mb-1">Email Address *</label>
-              <input type="email" required placeholder="jane@example.com" value={studentForm.email} onChange={(e) => setStudentForm({...studentForm, email: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+              <label className="block text-slate-400 font-medium mb-1">Email Address</label>
+              <input type="email" placeholder="jane@example.com" value={studentForm.email} onChange={(e) => setStudentForm({...studentForm, email: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
             </div>
             <div>
               <label className="block text-slate-400 font-medium mb-1">Phone Number</label>
@@ -3530,8 +3530,8 @@ export default function App() {
               </select>
             </div>
             <div>
-              <label className="block text-slate-400 font-medium mb-1">Batch Code *</label>
-              <input type="text" required placeholder="BATCH-WEB-01" value={studentForm.batchId} onChange={(e) => setStudentForm({...studentForm, batchId: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+              <label className="block text-slate-400 font-medium mb-1">Batch Code</label>
+              <input type="text" placeholder="BATCH-WEB-01" value={studentForm.batchId} onChange={(e) => setStudentForm({...studentForm, batchId: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
             </div>
             <div>
               <label className="block text-slate-400 font-medium mb-1">Total Package Amount *</label>

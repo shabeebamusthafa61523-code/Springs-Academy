@@ -12,12 +12,11 @@ const studentSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true,
-    unique: true
+    default: ''
   },
   batchId: {
     type: String,
-    required: true
+    default: ''
   },
   courseName: {
     type: String,
