@@ -142,6 +142,9 @@ export default function App() {
   const [paymentSortOrder, setPaymentSortOrder] = useState('desc');
   const [paymentStartDate, setPaymentStartDate] = useState('');
   const [paymentEndDate, setPaymentEndDate] = useState('');
+  const [invoiceScheduleStartDate, setInvoiceScheduleStartDate] = useState('');
+  const [invoiceScheduleEndDate, setInvoiceScheduleEndDate] = useState('');
+  const [invoiceScheduleStatusFilter, setInvoiceScheduleStatusFilter] = useState('All');
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [feeCollectionSort, setFeeCollectionSort] = useState('date-desc');
   const [feeCollectionSearch, setFeeCollectionSearch] = useState('');
@@ -755,6 +758,136 @@ export default function App() {
     
     doc.save("Fee_Collection_Terminal_Report.pdf");
     toast.success("Fee Collection Terminal PDF downloaded successfully!");
+  };
+
+  const generateMasterInvoicesPDF = async (invoicesList) => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const logoDataUrl = await getLogoDataUrl();
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, 210, 40, 'F');
+
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'PNG', 15, 6, 38, 16);
+      } catch (e) {
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(22);
+        doc.text("SPRINGS ACADEMY", 15, 18);
+      }
+    } else {
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.text("SPRINGS ACADEMY", 15, 18);
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(148, 163, 184);
+    doc.text("Master Invoices & Payment Schedule Report", 15, 27);
+    const dateRangeStr = (invoiceScheduleStartDate || invoiceScheduleEndDate) 
+      ? `Date Range: ${invoiceScheduleStartDate || 'Start'} to ${invoiceScheduleEndDate || 'Present'}` 
+      : `Generated: ${new Date().toLocaleDateString()}`;
+    doc.text(`${dateRangeStr}  |  Total Invoices: ${(invoicesList || []).length}`, 15, 33);
+
+    let startY = 50;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(51, 65, 85);
+
+    doc.text("Invoice #", 15, startY);
+    doc.text("Student Name (Roll)", 50, startY);
+    doc.text("Particulars", 110, startY);
+    doc.text("Amount (INR)", 145, startY);
+    doc.text("Due/Paid Date", 170, startY);
+    doc.text("Status", 195, startY, { align: 'right' });
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(15, startY + 3, 195, startY + 3);
+
+    let currentY = startY + 9;
+    let totalAmount = 0;
+    let paidTotal = 0;
+    let pendingTotal = 0;
+
+    (invoicesList || []).forEach((inv) => {
+      if (currentY > 270) {
+        doc.addPage();
+        currentY = 20;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(51, 65, 85);
+        doc.text("Invoice #", 15, currentY);
+        doc.text("Student Name (Roll)", 50, currentY);
+        doc.text("Particulars", 110, currentY);
+        doc.text("Amount (INR)", 145, currentY);
+        doc.text("Due/Paid Date", 170, currentY);
+        doc.text("Status", 195, currentY, { align: 'right' });
+
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.5);
+        doc.line(15, currentY + 3, 195, currentY + 3);
+        currentY += 9;
+      }
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(30, 41, 59);
+
+      const invNum = inv.invoiceNumber || 'INV-001';
+      const studentInfo = `${inv.studentName || 'Student'} (${inv.studentRoll || 'N/A'})`;
+      const particulars = (inv.particulars || 'Tuition Fee').slice(0, 25);
+      const amt = Number(inv.amount || 0);
+      const dateStr = inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A');
+      const status = inv.status || 'Pending';
+
+      totalAmount += amt;
+      if (status === 'Paid') paidTotal += amt;
+      else pendingTotal += amt;
+
+      doc.text(invNum, 15, currentY);
+      doc.text(studentInfo.length > 32 ? studentInfo.slice(0, 30) + '..' : studentInfo, 50, currentY);
+      doc.text(particulars, 110, currentY);
+      doc.text(amt.toLocaleString(), 145, currentY);
+      doc.text(dateStr, 170, currentY);
+
+      if (status === 'Paid') {
+        doc.setTextColor(22, 163, 74);
+      } else {
+        doc.setTextColor(217, 119, 6);
+      }
+      doc.text(status, 195, currentY, { align: 'right' });
+
+      doc.setDrawColor(241, 245, 249);
+      doc.line(15, currentY + 2.5, 195, currentY + 2.5);
+      currentY += 7.5;
+    });
+
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    currentY += 5;
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(15, currentY, 180, 18, 2, 2, 'FD');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`Total Invoices Amount: INR ${totalAmount.toLocaleString()}`, 20, currentY + 7);
+    doc.setTextColor(22, 163, 74);
+    doc.text(`Total Collected (Paid): INR ${paidTotal.toLocaleString()}`, 20, currentY + 13);
+    doc.setTextColor(217, 119, 6);
+    doc.text(`Total Pending (Due): INR ${pendingTotal.toLocaleString()}`, 110, currentY + 13);
+
+    doc.save(`Master_Invoices_Schedule_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success("Master Invoices & Payment Schedule PDF downloaded!");
   };
 
   const handleFileChangeForCrop = (e, aspect, callback) => {
@@ -2374,91 +2507,160 @@ export default function App() {
                 </div>
 
                 {/* Master Invoices Schedule Section */}
-                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                    <div>
-                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-blue-400" />
-                        All Student Invoices & Payment Schedule
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">Manage, track, and collect payment for all student invoices in MongoDB Atlas.</p>
-                    </div>
-                  </div>
+                {(() => {
+                  const masterInvoicesList = visibleStudents.flatMap(student => 
+                    (student.invoices || []).map(inv => ({
+                      ...inv,
+                      studentName: student.name,
+                      studentRoll: student.rollNumber,
+                      studentObj: student
+                    }))
+                  );
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-900/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800">
-                        <tr>
-                          <th className="px-4 py-3">Invoice #</th>
-                          <th className="px-4 py-3">Student</th>
-                          <th className="px-4 py-3">Particulars</th>
-                          <th className="px-4 py-3">Amount</th>
-                          <th className="px-4 py-3">Due Date</th>
-                          <th className="px-4 py-3">Status</th>
-                          <th className="px-4 py-3 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {visibleStudents.flatMap(student => 
-                          (student.invoices || []).map(inv => ({
-                            ...inv,
-                            studentName: student.name,
-                            studentRoll: student.rollNumber,
-                            studentObj: student
-                          }))
-                        ).length === 0 ? (
-                          <tr>
-                            <td colSpan="7" className="text-center py-6 text-slate-500">No student invoices found in database.</td>
-                          </tr>
-                        ) : (
-                          visibleStudents.flatMap(student => 
-                            (student.invoices || []).map(inv => ({
-                              ...inv,
-                              studentName: student.name,
-                              studentRoll: student.rollNumber,
-                              studentObj: student
-                            }))
-                          ).map((inv, idx) => (
-                            <tr key={inv._id || idx} className="hover:bg-slate-900/50 transition-colors">
-                              <td className="px-4 py-3 font-mono font-semibold text-blue-400">{inv.invoiceNumber || 'INV-001'}</td>
-                              <td className="px-4 py-3 font-medium text-white">{inv.studentName} <span className="text-[10px] text-slate-500 font-mono">({inv.studentRoll})</span></td>
-                              <td className="px-4 py-3 text-slate-400">{inv.particulars || 'Tuition Fee'}</td>
-                              <td className="px-4 py-3 font-bold text-white">₹{(inv.amount || 0).toLocaleString()}</td>
-                              <td className="px-4 py-3 font-mono text-slate-400">{inv.dueDate || 'N/A'}</td>
-                              <td className="px-4 py-3">
-                                <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                                  inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                }`}>
-                                  {inv.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                {inv.status === 'Paid' ? (
-                                  <button
-                                    onClick={() => generatePDFInvoice(inv.studentObj, inv)}
-                                    className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
-                                  >
-                                    Download Invoice
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => {
-                                      setPaymentModalData({ studentId: inv.studentObj._id, invoiceId: inv._id });
-                                      setIsPaymentModalOpen(true);
-                                    }}
-                                    className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
-                                  >
-                                    Mark Paid
-                                  </button>
-                                )}
-                              </td>
+                  const filteredMasterInvoices = masterInvoicesList.filter(inv => {
+                    const invDate = inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate ? String(inv.dueDate).split('T')[0] : '');
+                    if (invoiceScheduleStartDate && invDate < invoiceScheduleStartDate) return false;
+                    if (invoiceScheduleEndDate && invDate > invoiceScheduleEndDate) return false;
+                    if (invoiceScheduleStatusFilter !== 'All' && inv.status !== invoiceScheduleStatusFilter) return false;
+                    return true;
+                  });
+
+                  return (
+                    <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                      {/* Controls Header */}
+                      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4 pb-4 border-b border-slate-800/80">
+                        <div>
+                          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-blue-400" />
+                            All Student Invoices & Payment Schedule
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-0.5">Manage, track, filter by date, and download PDF for all student invoices in MongoDB Atlas.</p>
+                        </div>
+
+                        {/* Filters & PDF Download */}
+                        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+                          {/* Start Date */}
+                          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                            <span className="text-[10px] text-slate-500 font-semibold uppercase">From:</span>
+                            <input 
+                              type="date" 
+                              value={invoiceScheduleStartDate}
+                              onChange={(e) => setInvoiceScheduleStartDate(e.target.value)}
+                              className="bg-transparent text-white focus:outline-none text-xs"
+                            />
+                          </div>
+
+                          {/* End Date */}
+                          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                            <span className="text-[10px] text-slate-500 font-semibold uppercase">To:</span>
+                            <input 
+                              type="date" 
+                              value={invoiceScheduleEndDate}
+                              onChange={(e) => setInvoiceScheduleEndDate(e.target.value)}
+                              className="bg-transparent text-white focus:outline-none text-xs"
+                            />
+                          </div>
+
+                          {/* Status Filter */}
+                          <select
+                            value={invoiceScheduleStatusFilter}
+                            onChange={(e) => setInvoiceScheduleStatusFilter(e.target.value)}
+                            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                          >
+                            <option value="All">All Statuses</option>
+                            <option value="Paid">Paid Only</option>
+                            <option value="Pending">Pending Only</option>
+                          </select>
+
+                          {/* Reset Filter Button */}
+                          {(invoiceScheduleStartDate || invoiceScheduleEndDate || invoiceScheduleStatusFilter !== 'All') && (
+                            <button
+                              onClick={() => {
+                                setInvoiceScheduleStartDate('');
+                                setInvoiceScheduleEndDate('');
+                                setInvoiceScheduleStatusFilter('All');
+                              }}
+                              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors cursor-pointer"
+                              title="Reset Filters"
+                            >
+                              Clear
+                            </button>
+                          )}
+
+                          {/* Download PDF Button */}
+                          <button
+                            onClick={() => generateMasterInvoicesPDF(filteredMasterInvoices)}
+                            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer ml-auto xl:ml-0 shadow-lg shadow-blue-600/20"
+                            title="Download PDF Report of Filtered Invoices"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            Download PDF Report
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs text-slate-300">
+                          <thead className="bg-slate-900/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800">
+                            <tr>
+                              <th className="px-4 py-3">Invoice #</th>
+                              <th className="px-4 py-3">Student</th>
+                              <th className="px-4 py-3">Particulars</th>
+                              <th className="px-4 py-3">Amount</th>
+                              <th className="px-4 py-3">Due / Paid Date</th>
+                              <th className="px-4 py-3">Status</th>
+                              <th className="px-4 py-3 text-right">Action</th>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {filteredMasterInvoices.length === 0 ? (
+                              <tr>
+                                <td colSpan="7" className="text-center py-6 text-slate-500">No invoices match the selected date/status filters.</td>
+                              </tr>
+                            ) : (
+                              filteredMasterInvoices.map((inv, idx) => (
+                                <tr key={inv._id || idx} className="hover:bg-slate-900/50 transition-colors">
+                                  <td className="px-4 py-3 font-mono font-semibold text-blue-400">{inv.invoiceNumber || 'INV-001'}</td>
+                                  <td className="px-4 py-3 font-medium text-white">{inv.studentName} <span className="text-[10px] text-slate-500 font-mono">({inv.studentRoll})</span></td>
+                                  <td className="px-4 py-3 text-slate-400">{inv.particulars || 'Tuition Fee'}</td>
+                                  <td className="px-4 py-3 font-bold text-white">₹{(inv.amount || 0).toLocaleString()}</td>
+                                  <td className="px-4 py-3 font-mono text-slate-400">{inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A')}</td>
+                                  <td className="px-4 py-3">
+                                    <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                      inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                    }`}>
+                                      {inv.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    {inv.status === 'Paid' ? (
+                                      <button
+                                        onClick={() => generatePDFInvoice(inv.studentObj, inv)}
+                                        className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                      >
+                                        Download Invoice
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          setPaymentModalData({ studentId: inv.studentObj._id, invoiceId: inv._id });
+                                          setIsPaymentModalOpen(true);
+                                        }}
+                                        className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                      >
+                                        Mark Paid
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
 
               </div>
             );
