@@ -165,20 +165,29 @@ export const getInvoices = async (req, res) => {
 
 // Delete payment log & reconcile student fee ledger
 export const deletePaymentLog = async (req, res) => {
-  const { paymentId } = req.params;
+  const paymentId = req.params.paymentId || req.params.invoiceId || req.params.id;
   const { studentId } = req.body || {};
 
   try {
+    console.log(`[Delete Payment Log] Attempting deletion for paymentId: ${paymentId}, studentId: ${studentId}`);
     let studentIdToReconcile = studentId;
 
-    // 1. Check if paymentId corresponds to an Invoice
+    if (!paymentId) {
+      return res.status(400).json({ message: 'Payment ID is required for deletion' });
+    }
+
+    // 1. Check if paymentId corresponds to an Invoice document
     const invoice = await Invoice.findById(paymentId);
     if (invoice) {
-      studentIdToReconcile = studentIdToReconcile || invoice.studentId;
+      console.log(`[Delete Payment Log] Found Invoice document: ${invoice._id}, particulars: ${invoice.particulars}`);
+      if (invoice.studentId) {
+        studentIdToReconcile = studentIdToReconcile || (invoice.studentId._id ? String(invoice.studentId._id) : String(invoice.studentId));
+      }
 
       if (invoice.particulars && invoice.particulars.startsWith('Fee Collection Receipt')) {
-        // Dynamic fee receipt invoice created on payment -> delete document
+        // Dynamic fee receipt invoice created on payment -> delete document permanently from Atlas
         await Invoice.findByIdAndDelete(paymentId);
+        console.log(`[Delete Payment Log] Deleted dynamic receipt invoice ${paymentId} from Atlas`);
       } else {
         // Original scheduled invoice -> revert status to Pending
         invoice.status = 'Pending';
@@ -186,20 +195,30 @@ export const deletePaymentLog = async (req, res) => {
         invoice.paymentMethod = 'N/A';
         invoice.upiScreenshot = null;
         await invoice.save();
+        console.log(`[Delete Payment Log] Reverted scheduled invoice ${paymentId} to Pending in Atlas`);
       }
     }
 
-    // 2. Also remove from Student.payments array if present
+    // 2. Check if paymentId exists inside any Student.payments array
+    if (!studentIdToReconcile) {
+      const studentWithPay = await Student.findOne({ 'payments._id': paymentId });
+      if (studentWithPay) {
+        studentIdToReconcile = String(studentWithPay._id);
+      }
+    }
+
     if (studentIdToReconcile) {
       const student = await Student.findById(studentIdToReconcile);
       if (student && student.payments) {
+        const initialCount = student.payments.length;
         student.payments = student.payments.filter(p => String(p._id) !== String(paymentId));
-        await student.save();
+        if (student.payments.length !== initialCount) {
+          await student.save();
+          console.log(`[Delete Payment Log] Removed payment ${paymentId} from student.payments array in Atlas`);
+        }
       }
-    }
 
-    // 3. Recalculate Student Fees Ledger
-    if (studentIdToReconcile) {
+      // 3. Recalculate Student Fees Ledger in Atlas
       const paidInvoices = await Invoice.find({ studentId: studentIdToReconcile, status: 'Paid' });
       const totalPaidInvoices = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
 
@@ -211,23 +230,25 @@ export const deletePaymentLog = async (req, res) => {
       if (ledger) {
         ledger.amountPaid = totalPaid;
         ledger.balanceDue = Math.max(0, ledger.totalPackageAmount - totalPaid);
-        ledger.paymentStatus = ledger.balanceDue === 0 ? 'Fully Paid' : ledger.amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+        ledger.paymentStatus = ledger.balanceDue === 0 && ledger.totalPackageAmount > 0 ? 'Fully Paid' : ledger.amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
         await ledger.save();
+        console.log(`[Delete Payment Log] Reconciled FeeLedger in Atlas: amountPaid=${totalPaid}, balanceDue=${ledger.balanceDue}`);
       }
 
       const updatedStudent = await Student.findById(studentIdToReconcile);
       const updatedInvoices = await Invoice.find({ studentId: studentIdToReconcile });
 
       return res.status(200).json({
-        message: 'Payment log deleted and ledger reconciled successfully',
+        message: 'Payment log deleted and ledger reconciled successfully in MongoDB Atlas',
         student: updatedStudent,
         ledger,
         invoices: updatedInvoices
       });
     }
 
-    res.status(200).json({ message: 'Payment log deleted successfully' });
+    res.status(200).json({ message: 'Payment log processed' });
   } catch (error) {
+    console.error("[Delete Payment Log Error]:", error);
     res.status(500).json({ message: error.message });
   }
 };

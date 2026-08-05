@@ -138,7 +138,24 @@ export default function App() {
   const [editingStudentForm, setEditingStudentForm] = useState(null);
   const [newInstallmentForm, setNewInstallmentForm] = useState({ amount: '', description: '', dueDate: '', method: 'Cash', upiScreenshot: null });
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const savedTab = localStorage.getItem('agy_active_tab');
+      return savedTab || 'dashboard';
+    } catch (e) {
+      return 'dashboard';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (activeTab) {
+        localStorage.setItem('agy_active_tab', activeTab);
+      }
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }, [activeTab]);
   const [dashboardMonth, setDashboardMonth] = useState('All');
   const [paymentSortOrder, setPaymentSortOrder] = useState('desc');
   const [paymentStartDate, setPaymentStartDate] = useState('');
@@ -496,16 +513,34 @@ export default function App() {
     toast.success("Payment details corrected & ledger updated!");
   };
 
-  const handleDeletePayment = async (student, payment) => {
+  const [deletePaymentConfirmModal, setDeletePaymentConfirmModal] = useState({
+    isOpen: false,
+    student: null,
+    payment: null
+  });
+
+  const handleDeletePayment = (student, payment) => {
     if (!student || !payment) return;
-    const paymentAmt = payment.amount ? payment.amount.toLocaleString() : '0';
-    if (window.confirm(`Are you sure you want to delete payment log of ₹${paymentAmt} for ${student.name || 'student'}? This will update the student's remaining balance due.`)) {
-      const res = await deletePayment(student._id, payment._id);
-      if (res && res.error) {
-        toast.error(res.error);
-      } else {
-        toast.success("Payment log deleted & fee ledger updated!");
-      }
+    setDeletePaymentConfirmModal({
+      isOpen: true,
+      student,
+      payment
+    });
+  };
+
+  const confirmDeletePayment = async () => {
+    const { student, payment } = deletePaymentConfirmModal;
+    if (!student || !payment) return;
+
+    setDeletePaymentConfirmModal({ isOpen: false, student: null, payment: null });
+    toast.loading("Deleting payment log...", { id: "delete-toast" });
+
+    const res = await deletePayment(student._id, payment._id);
+
+    if (res && res.error) {
+      toast.error(res.error, { id: "delete-toast" });
+    } else {
+      toast.success("Payment log deleted & balance recalculated!", { id: "delete-toast" });
     }
   };
 
@@ -1342,10 +1377,28 @@ export default function App() {
         
         {/* Navigation Sidebar */}
         <aside 
-          className={`transition-all duration-300 ease-in-out w-full md:flex flex-col gap-1.5 border-r border-slate-900/50 bg-slate-900/10 ${
+          className={`relative transition-all duration-300 ease-in-out w-full md:flex flex-col gap-1.5 border-r border-slate-900/50 bg-slate-900/10 ${
             isSidebarCollapsed ? 'md:w-20 p-4' : 'md:w-64 p-6'
           }`}
         >
+          {/* Sidebar Collapse Toggle Arrow Button */}
+          <div className={`hidden md:flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} mb-3 pb-2 border-b border-slate-800/60`}>
+            {!isSidebarCollapsed && (
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Navigation</span>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800/80 shadow-md transition-all duration-200 cursor-pointer flex items-center justify-center group"
+              title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            >
+              {isSidebarCollapsed ? (
+                <ChevronRight className="w-4 h-4 text-blue-400 group-hover:translate-x-0.5 transition-transform" />
+              ) : (
+                <ChevronLeft className="w-4 h-4 text-blue-400 group-hover:-translate-x-0.5 transition-transform" />
+              )}
+            </button>
+          </div>
           <button
             onClick={(e) => {
               if (!isSidebarCollapsed) e.stopPropagation();
@@ -2656,14 +2709,25 @@ export default function App() {
                                       {inv.status}
                                     </span>
                                   </td>
-                                  <td className="px-4 py-3 text-right">
+                                  <td className="px-4 py-3 text-right flex items-center justify-end gap-1.5">
                                     {inv.status === 'Paid' ? (
-                                      <button
-                                        onClick={() => generatePDFInvoice(inv.studentObj, inv)}
-                                        className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
-                                      >
-                                        Download Invoice
-                                      </button>
+                                      <>
+                                        <button
+                                          onClick={() => generatePDFInvoice(inv.studentObj, inv)}
+                                          className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                        >
+                                          Download Invoice
+                                        </button>
+                                        {currentUser.role === 'Super Admin' && (
+                                          <button
+                                            onClick={() => handleDeletePayment(inv.studentObj, inv)}
+                                            className="bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white px-2 py-1 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                            title="Delete / Revert Payment"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                                          </button>
+                                        )}
+                                      </>
                                     ) : (
                                       <button
                                         onClick={() => {
@@ -4041,8 +4105,8 @@ export default function App() {
                 <>
                   <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 text-center mb-4">
                     <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-1">Balance Due</p>
-                    <p className="text-4xl font-bold text-rose-500">{viewingStudent.ledger.balanceDue.toLocaleString()}</p>
-                    <p className="text-xs text-slate-500 mt-2">Total Package: {viewingStudent.ledger.totalPackageAmount.toLocaleString()} | Paid: {viewingStudent.ledger.amountPaid.toLocaleString()}</p>
+                    <p className="text-4xl font-bold text-rose-500">{(viewingStudent?.ledger?.balanceDue || 0).toLocaleString()}</p>
+                    <p className="text-xs text-slate-500 mt-2">Total Package: {(viewingStudent?.ledger?.totalPackageAmount || 0).toLocaleString()} | Paid: {(viewingStudent?.ledger?.amountPaid || 0).toLocaleString()}</p>
                   </div>
 
                   {viewingStudent.payments && viewingStudent.payments.length > 0 && (
@@ -4262,11 +4326,11 @@ export default function App() {
           }} className="space-y-4 text-sm">
             <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl text-center mb-4">
               <p className="text-xs text-rose-400 font-semibold uppercase">Current Balance</p>
-              <p className="text-2xl font-bold text-rose-500">{viewingStudent.ledger.balanceDue.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-rose-500">{(viewingStudent?.ledger?.balanceDue || 0).toLocaleString()}</p>
             </div>
             <div>
-              <label className="block text-slate-400 font-medium mb-1">Payment Amount *</label>
-              <input type="number" required min="1" max={viewingStudent.ledger.balanceDue} value={newInstallmentForm.amount} onChange={(e) => setNewInstallmentForm({...newInstallmentForm, amount: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-emerald-500 text-lg font-semibold" />
+              <label className="block text-slate-400 font-medium mb-1">Payment Amount (INR) *</label>
+              <input type="number" required min="1" max={viewingStudent?.ledger?.balanceDue || 0} value={newInstallmentForm.amount} onChange={(e) => setNewInstallmentForm({...newInstallmentForm, amount: e.target.value})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-emerald-500 text-lg font-semibold" />
             </div>
             <div>
               <label className="block text-slate-400 font-medium mb-1">Payment Date *</label>
@@ -5387,6 +5451,59 @@ export default function App() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete Payment Confirmation Modal */}
+      <Modal
+        isOpen={deletePaymentConfirmModal.isOpen}
+        onClose={() => setDeletePaymentConfirmModal({ isOpen: false, student: null, payment: null })}
+        title="Confirm Delete Payment"
+      >
+        <div className="space-y-4 text-slate-300">
+          <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center text-rose-400 shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="text-white font-bold text-sm">Are you sure you want to delete this payment?</h4>
+              <p className="text-xs text-rose-300/80 mt-0.5">This action will update the student's remaining balance due immediately without needing a page refresh.</p>
+            </div>
+          </div>
+
+          {deletePaymentConfirmModal.student && deletePaymentConfirmModal.payment && (
+            <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Student Name:</span>
+                <span className="text-white font-bold">{deletePaymentConfirmModal.student.name} ({deletePaymentConfirmModal.student.rollNumber})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Payment Amount:</span>
+                <span className="text-emerald-400 font-extrabold text-sm">₹{(deletePaymentConfirmModal.payment.amount || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Payment Date & Method:</span>
+                <span className="text-slate-200 font-mono">{deletePaymentConfirmModal.payment.date} ({deletePaymentConfirmModal.payment.paymentMethod || 'Cash'})</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setDeletePaymentConfirmModal({ isOpen: false, student: null, payment: null })}
+              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl py-3 font-semibold text-xs transition-all cursor-pointer border border-slate-700"
+            >
+              No, Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDeletePayment}
+              className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl py-3 font-semibold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-rose-950/30"
+            >
+              <Trash2 className="w-4 h-4" /> Yes, Delete Payment
+            </button>
+          </div>
+        </div>
       </Modal>
 
     </div>
