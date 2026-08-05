@@ -575,6 +575,51 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
+  const deletePayment = async (studentId, paymentId) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      const res = await fetch(`${API_URL}/api/invoices/${paymentId}`, {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify({ studentId })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setStudents(prev => prev.map(s => {
+          if (String(s._id) === String(studentId)) {
+            const backendInvoices = data.invoices || [];
+            const updatedInvoices = (s.invoices || []).filter(inv => {
+              if (String(inv._id) === String(paymentId)) {
+                const existsInBackend = backendInvoices.some(bi => String(bi._id) === String(paymentId));
+                return existsInBackend;
+              }
+              return true;
+            }).map(inv => {
+              const updatedObj = backendInvoices.find(bi => String(bi._id) === String(inv._id));
+              return updatedObj || inv;
+            });
+
+            const updatedPayments = (s.payments || []).filter(p => String(p._id) !== String(paymentId));
+
+            return {
+              ...s,
+              invoices: updatedInvoices,
+              payments: updatedPayments,
+              ledger: data.ledger || s.ledger
+            };
+          }
+          return s;
+        }));
+        return data;
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas delete payment warning:", err);
+    }
+  };
+
   const markInvoicePaid = async (studentId, invoiceId, paymentMethod) => {
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -955,6 +1000,7 @@ export const AppProvider = ({ children }) => {
       addInstallment,
       makePayment,
       editPayment,
+      deletePayment,
       markInvoicePaid,
       overrideStudentLedger,
       employees,

@@ -1,5 +1,6 @@
 import Invoice from '../models/Invoice.js';
 import FeeLedger from '../models/FeeLedger.js';
+import Student from '../models/Student.js';
 import mongoose from 'mongoose';
 
 // Record payment / update invoice status & details
@@ -157,6 +158,75 @@ export const getInvoices = async (req, res) => {
       invoices = invoices.filter(inv => !inv.studentId || !inv.studentId.isConfidentialFee);
     }
     res.json(invoices);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete payment log & reconcile student fee ledger
+export const deletePaymentLog = async (req, res) => {
+  const { paymentId } = req.params;
+  const { studentId } = req.body || {};
+
+  try {
+    let studentIdToReconcile = studentId;
+
+    // 1. Check if paymentId corresponds to an Invoice
+    const invoice = await Invoice.findById(paymentId);
+    if (invoice) {
+      studentIdToReconcile = studentIdToReconcile || invoice.studentId;
+
+      if (invoice.particulars && invoice.particulars.startsWith('Fee Collection Receipt')) {
+        // Dynamic fee receipt invoice created on payment -> delete document
+        await Invoice.findByIdAndDelete(paymentId);
+      } else {
+        // Original scheduled invoice -> revert status to Pending
+        invoice.status = 'Pending';
+        invoice.paidOn = null;
+        invoice.paymentMethod = 'N/A';
+        invoice.upiScreenshot = null;
+        await invoice.save();
+      }
+    }
+
+    // 2. Also remove from Student.payments array if present
+    if (studentIdToReconcile) {
+      const student = await Student.findById(studentIdToReconcile);
+      if (student && student.payments) {
+        student.payments = student.payments.filter(p => String(p._id) !== String(paymentId));
+        await student.save();
+      }
+    }
+
+    // 3. Recalculate Student Fees Ledger
+    if (studentIdToReconcile) {
+      const paidInvoices = await Invoice.find({ studentId: studentIdToReconcile, status: 'Paid' });
+      const totalPaidInvoices = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+
+      const studentObj = await Student.findById(studentIdToReconcile);
+      const manualPaymentsSum = (studentObj?.payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+      const totalPaid = totalPaidInvoices + manualPaymentsSum;
+
+      const ledger = await FeeLedger.findOne({ studentId: studentIdToReconcile });
+      if (ledger) {
+        ledger.amountPaid = totalPaid;
+        ledger.balanceDue = Math.max(0, ledger.totalPackageAmount - totalPaid);
+        ledger.paymentStatus = ledger.balanceDue === 0 ? 'Fully Paid' : ledger.amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+        await ledger.save();
+      }
+
+      const updatedStudent = await Student.findById(studentIdToReconcile);
+      const updatedInvoices = await Invoice.find({ studentId: studentIdToReconcile });
+
+      return res.status(200).json({
+        message: 'Payment log deleted and ledger reconciled successfully',
+        student: updatedStudent,
+        ledger,
+        invoices: updatedInvoices
+      });
+    }
+
+    res.status(200).json({ message: 'Payment log deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

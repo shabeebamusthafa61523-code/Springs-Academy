@@ -1,5 +1,5 @@
 import express from 'express';
-import { getInvoices, updateInvoiceStatus, createInvoice, recordFeePayment } from '../controllers/invoiceController.js';
+import { getInvoices, updateInvoiceStatus, createInvoice, recordFeePayment, deletePaymentLog } from '../controllers/invoiceController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -12,6 +12,7 @@ router.route('/pay')
   .post(protect, recordFeePayment);
 
 router.route('/:invoiceId')
-  .put(protect, authorize('Super Admin', 'Admin'), updateInvoiceStatus);
+  .put(protect, authorize('Super Admin', 'Admin'), updateInvoiceStatus)
+  .delete(protect, authorize('Super Admin', 'Admin'), deletePaymentLog);
 
 export default router;

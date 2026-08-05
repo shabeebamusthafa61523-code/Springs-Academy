@@ -55,6 +55,8 @@ export default function App() {
     deleteStudent,
     addInstallment,
     makePayment,
+    editPayment,
+    deletePayment,
     markInvoicePaid, 
     overrideStudentLedger,
     employees, 
@@ -72,7 +74,6 @@ export default function App() {
     deleteCourse,
     extraIncomes,
     addExtraIncome,
-    editPayment,
     getStats 
   } = useApp();
 
@@ -493,6 +494,19 @@ export default function App() {
     await editPayment(editingPaymentData.studentId, editingPaymentData.paymentId, editingPaymentData);
     setIsEditPaymentModalOpen(false);
     toast.success("Payment details corrected & ledger updated!");
+  };
+
+  const handleDeletePayment = async (student, payment) => {
+    if (!student || !payment) return;
+    const paymentAmt = payment.amount ? payment.amount.toLocaleString() : '0';
+    if (window.confirm(`Are you sure you want to delete payment log of ₹${paymentAmt} for ${student.name || 'student'}? This will update the student's remaining balance due.`)) {
+      const res = await deletePayment(student._id, payment._id);
+      if (res && res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Payment log deleted & fee ledger updated!");
+      }
+    }
   };
 
   const generateStudentDirectoryPDF = async () => {
@@ -2271,12 +2285,22 @@ export default function App() {
                                                     </div>
                                                     <div className="flex items-center gap-1.5">
                                                       {currentUser.role === 'Super Admin' && (
-                                                        <button 
-                                                          onClick={() => openEditPaymentModal(student, pay)}
-                                                          className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                                                        >
-                                                          <Edit className="w-3 h-3" /> Edit
-                                                        </button>
+                                                        <>
+                                                          <button 
+                                                            onClick={() => openEditPaymentModal(student, pay)}
+                                                            className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                                            title="Edit payment amount"
+                                                          >
+                                                            <Edit className="w-3 h-3" /> Edit
+                                                          </button>
+                                                          <button 
+                                                            onClick={() => handleDeletePayment(student, pay)}
+                                                            className="bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                                            title="Delete payment log"
+                                                          >
+                                                            <Trash2 className="w-3 h-3" /> Delete
+                                                          </button>
+                                                        </>
                                                       )}
                                                       <button 
                                                         onClick={() => generatePDFInvoice(student, pay)}
@@ -2898,13 +2922,22 @@ export default function App() {
                                       </div>
                                       <div className="flex items-center gap-1">
                                         {currentUser.role === 'Super Admin' && (
-                                          <button
-                                            onClick={() => openEditPaymentModal(student, pay)}
-                                            className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
-                                            title="Edit payment amount"
-                                          >
-                                            <Edit className="w-3 h-3" /> Edit
-                                          </button>
+                                          <>
+                                            <button
+                                              onClick={() => openEditPaymentModal(student, pay)}
+                                              className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                              title="Edit payment amount"
+                                            >
+                                              <Edit className="w-3 h-3" /> Edit
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeletePayment(student, pay)}
+                                              className="bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                              title="Delete payment log"
+                                            >
+                                              <Trash2 className="w-3 h-3" /> Delete
+                                            </button>
+                                          </>
                                         )}
                                         <button
                                           onClick={() => generatePDFInvoice(student, pay)}
@@ -4024,15 +4057,27 @@ export default function App() {
                             </div>
                             <div className="flex items-center gap-1">
                               {currentUser.role === 'Super Admin' && (
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openEditPaymentModal(viewingStudent, pay);
-                                  }}
-                                  className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                                >
-                                  <Edit className="w-3 h-3" /> Edit
-                                </button>
+                                <>
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openEditPaymentModal(viewingStudent, pay);
+                                    }}
+                                    className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                  >
+                                    <Edit className="w-3 h-3" /> Edit
+                                  </button>
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeletePayment(viewingStudent, pay);
+                                    }}
+                                    className="bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                    title="Delete payment log"
+                                  >
+                                    <Trash2 className="w-3 h-3" /> Delete
+                                  </button>
+                                </>
                               )}
                               <button 
                                 onClick={(e) => {
