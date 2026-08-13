@@ -1452,6 +1452,22 @@ export default function App() {
               <button
                 onClick={(e) => {
                   if (!isSidebarCollapsed) e.stopPropagation();
+                  setActiveTab('master-invoices');
+                }}
+                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                  activeTab === 'master-invoices'
+                    ? 'bg-blue-600/10 text-blue-300 border border-blue-500/20'
+                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                }`}
+                title="All Student Invoices"
+              >
+                <FileText className="w-5 h-5 flex-shrink-0" />
+                {!isSidebarCollapsed && <span>All Student Invoices</span>}
+              </button>
+
+              <button
+                onClick={(e) => {
+                  if (!isSidebarCollapsed) e.stopPropagation();
                   setActiveTab('fee-collection');
                 }}
                 className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
@@ -2583,173 +2599,205 @@ export default function App() {
 
                 </div>
 
-                {/* Master Invoices Schedule Section */}
-                {(() => {
-                  const masterInvoicesList = visibleStudents.flatMap(student => 
-                    (student.invoices || []).map(inv => ({
-                      ...inv,
-                      studentName: student.name,
-                      studentRoll: student.rollNumber,
-                      studentObj: student
-                    }))
-                  );
+                {/* Master Invoices moved to its own tab */}
 
-                  const filteredMasterInvoices = masterInvoicesList.filter(inv => {
-                    const invDate = inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate ? String(inv.dueDate).split('T')[0] : '');
-                    if (invoiceScheduleStartDate && invDate < invoiceScheduleStartDate) return false;
-                    if (invoiceScheduleEndDate && invDate > invoiceScheduleEndDate) return false;
-                    if (invoiceScheduleStatusFilter !== 'All' && inv.status !== invoiceScheduleStatusFilter) return false;
-                    return true;
-                  });
+              </div>
+            );
+          })()}
 
-                  return (
-                    <div className="glass-panel p-6 rounded-2xl border border-slate-800">
-                      {/* Controls Header */}
-                      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4 pb-4 border-b border-slate-800/80">
-                        <div>
-                          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-blue-400" />
-                            All Student Invoices & Payment Schedule
-                          </h3>
-                          <p className="text-xs text-slate-400 mt-0.5">Manage, track, filter by date, and download PDF for all student invoices in MongoDB Atlas.</p>
-                        </div>
 
-                        {/* Filters & PDF Download */}
-                        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
-                          {/* Start Date */}
-                          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300">
-                            <span className="text-[10px] text-slate-500 font-semibold uppercase">From:</span>
-                            <input 
-                              type="date" 
-                              value={invoiceScheduleStartDate}
-                              onChange={(e) => setInvoiceScheduleStartDate(e.target.value)}
-                              className="bg-transparent text-white focus:outline-none text-xs"
-                            />
-                          </div>
+          {/* TAB: ALL STUDENT INVOICES & PAYMENT SCHEDULE */}
+          {activeTab === 'master-invoices' && (() => {
+            const masterInvoicesList = visibleStudents.flatMap(student => 
+              (student.invoices || []).map(inv => ({
+                ...inv,
+                studentName: student.name,
+                studentRoll: student.rollNumber,
+                studentObj: student
+              }))
+            );
 
-                          {/* End Date */}
-                          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300">
-                            <span className="text-[10px] text-slate-500 font-semibold uppercase">To:</span>
-                            <input 
-                              type="date" 
-                              value={invoiceScheduleEndDate}
-                              onChange={(e) => setInvoiceScheduleEndDate(e.target.value)}
-                              className="bg-transparent text-white focus:outline-none text-xs"
-                            />
-                          </div>
+            const filteredMasterInvoices = masterInvoicesList.filter(inv => {
+              const invDate = inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate ? String(inv.dueDate).split('T')[0] : '');
+              if (invoiceScheduleStartDate && invDate < invoiceScheduleStartDate) return false;
+              if (invoiceScheduleEndDate && invDate > invoiceScheduleEndDate) return false;
+              if (invoiceScheduleStatusFilter !== 'All' && inv.status !== invoiceScheduleStatusFilter) return false;
+              return true;
+            });
 
-                          {/* Status Filter */}
-                          <select
-                            value={invoiceScheduleStatusFilter}
-                            onChange={(e) => setInvoiceScheduleStatusFilter(e.target.value)}
-                            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
-                          >
-                            <option value="All">All Statuses</option>
-                            <option value="Paid">Paid Only</option>
-                            <option value="Pending">Pending Only</option>
-                          </select>
+            const totalAmount = filteredMasterInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+            const paidAmount = filteredMasterInvoices.filter(i => i.status === 'Paid').reduce((sum, inv) => sum + (inv.amount || 0), 0);
+            const pendingAmount = filteredMasterInvoices.filter(i => i.status === 'Pending').reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
-                          {/* Reset Filter Button */}
-                          {(invoiceScheduleStartDate || invoiceScheduleEndDate || invoiceScheduleStatusFilter !== 'All') && (
-                            <button
-                              onClick={() => {
-                                setInvoiceScheduleStartDate('');
-                                setInvoiceScheduleEndDate('');
-                                setInvoiceScheduleStatusFilter('All');
-                              }}
-                              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors cursor-pointer"
-                              title="Reset Filters"
-                            >
-                              Clear
-                            </button>
-                          )}
+            return (
+              <div className="space-y-6">
+                {/* Page Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <FileText className="w-6 h-6 text-blue-400" />
+                      All Student Invoices & Payment Schedule
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1">Manage, track, filter by date, and download PDF for all student invoices.</p>
+                  </div>
+                </div>
 
-                          {/* Download PDF Button */}
-                          <button
-                            onClick={() => generateMasterInvoicesPDF(filteredMasterInvoices)}
-                            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer ml-auto xl:ml-0 shadow-lg shadow-blue-600/20"
-                            title="Download PDF Report of Filtered Invoices"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            Download PDF Report
-                          </button>
-                        </div>
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-center">
+                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Total Invoices</p>
+                    <p className="text-2xl font-bold text-white mt-1">{filteredMasterInvoices.length}</p>
+                  </div>
+                  <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-center">
+                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Total Amount</p>
+                    <p className="text-2xl font-bold text-blue-400 mt-1">₹{totalAmount.toLocaleString()}</p>
+                  </div>
+                  <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-center">
+                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Paid</p>
+                    <p className="text-2xl font-bold text-emerald-400 mt-1">₹{paidAmount.toLocaleString()}</p>
+                  </div>
+                  <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-center">
+                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Pending</p>
+                    <p className="text-2xl font-bold text-amber-400 mt-1">₹{pendingAmount.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Filters & Table */}
+                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                  {/* Filters Header */}
+                  <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4 pb-4 border-b border-slate-800/80">
+                    <div className="flex flex-wrap items-center gap-2 w-full">
+                      {/* Start Date */}
+                      <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase">From:</span>
+                        <input 
+                          type="date" 
+                          value={invoiceScheduleStartDate}
+                          onChange={(e) => setInvoiceScheduleStartDate(e.target.value)}
+                          className="bg-transparent text-white focus:outline-none text-xs"
+                        />
                       </div>
 
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs text-slate-300">
-                          <thead className="bg-slate-900/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800">
-                            <tr>
-                              <th className="px-4 py-3">Invoice #</th>
-                              <th className="px-4 py-3">Student</th>
-                              <th className="px-4 py-3">Particulars</th>
-                              <th className="px-4 py-3">Amount</th>
-                              <th className="px-4 py-3">Due / Paid Date</th>
-                              <th className="px-4 py-3">Status</th>
-                              <th className="px-4 py-3 text-right">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-800/60">
-                            {filteredMasterInvoices.length === 0 ? (
-                              <tr>
-                                <td colSpan="7" className="text-center py-6 text-slate-500">No invoices match the selected date/status filters.</td>
-                              </tr>
-                            ) : (
-                              filteredMasterInvoices.map((inv, idx) => (
-                                <tr key={inv._id || idx} className="hover:bg-slate-900/50 transition-colors">
-                                  <td className="px-4 py-3 font-mono font-semibold text-blue-400">{inv.invoiceNumber || 'INV-001'}</td>
-                                  <td className="px-4 py-3 font-medium text-white">{inv.studentName} <span className="text-[10px] text-slate-500 font-mono">({inv.studentRoll})</span></td>
-                                  <td className="px-4 py-3 text-slate-400">{inv.particulars || 'Tuition Fee'}</td>
-                                  <td className="px-4 py-3 font-bold text-white">₹{(inv.amount || 0).toLocaleString()}</td>
-                                  <td className="px-4 py-3 font-mono text-slate-400">{inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A')}</td>
-                                  <td className="px-4 py-3">
-                                    <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                                      inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                    }`}>
-                                      {inv.status}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-right flex items-center justify-end gap-1.5">
-                                    {inv.status === 'Paid' ? (
-                                      <>
-                                        <button
-                                          onClick={() => generatePDFInvoice(inv.studentObj, inv)}
-                                          className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
-                                        >
-                                          Download Invoice
-                                        </button>
-                                        {currentUser.role === 'Super Admin' && (
-                                          <button
-                                            onClick={() => handleDeletePayment(inv.studentObj, inv)}
-                                            className="bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white px-2 py-1 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
-                                            title="Delete / Revert Payment"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" /> Delete
-                                          </button>
-                                        )}
-                                      </>
-                                    ) : (
+                      {/* End Date */}
+                      <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase">To:</span>
+                        <input 
+                          type="date" 
+                          value={invoiceScheduleEndDate}
+                          onChange={(e) => setInvoiceScheduleEndDate(e.target.value)}
+                          className="bg-transparent text-white focus:outline-none text-xs"
+                        />
+                      </div>
+
+                      {/* Status Filter */}
+                      <select
+                        value={invoiceScheduleStatusFilter}
+                        onChange={(e) => setInvoiceScheduleStatusFilter(e.target.value)}
+                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="All">All Statuses</option>
+                        <option value="Paid">Paid Only</option>
+                        <option value="Pending">Pending Only</option>
+                      </select>
+
+                      {/* Reset Filter Button */}
+                      {(invoiceScheduleStartDate || invoiceScheduleEndDate || invoiceScheduleStatusFilter !== 'All') && (
+                        <button
+                          onClick={() => {
+                            setInvoiceScheduleStartDate('');
+                            setInvoiceScheduleEndDate('');
+                            setInvoiceScheduleStatusFilter('All');
+                          }}
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors cursor-pointer"
+                          title="Reset Filters"
+                        >
+                          Clear
+                        </button>
+                      )}
+
+                      {/* Download PDF Button */}
+                      <button
+                        onClick={() => generateMasterInvoicesPDF(filteredMasterInvoices)}
+                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer ml-auto shadow-lg shadow-blue-600/20"
+                        title="Download PDF Report of Filtered Invoices"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download PDF Report
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-900/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800">
+                        <tr>
+                          <th className="px-4 py-3">Invoice #</th>
+                          <th className="px-4 py-3">Student</th>
+                          <th className="px-4 py-3">Particulars</th>
+                          <th className="px-4 py-3">Amount</th>
+                          <th className="px-4 py-3">Due / Paid Date</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {filteredMasterInvoices.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="text-center py-6 text-slate-500">No invoices match the selected date/status filters.</td>
+                          </tr>
+                        ) : (
+                          filteredMasterInvoices.map((inv, idx) => (
+                            <tr key={inv._id || idx} className="hover:bg-slate-900/50 transition-colors">
+                              <td className="px-4 py-3 font-mono font-semibold text-blue-400">{inv.invoiceNumber || 'INV-001'}</td>
+                              <td className="px-4 py-3 font-medium text-white">{inv.studentName} <span className="text-[10px] text-slate-500 font-mono">({inv.studentRoll})</span></td>
+                              <td className="px-4 py-3 text-slate-400">{inv.particulars || 'Tuition Fee'}</td>
+                              <td className="px-4 py-3 font-bold text-white">₹{(inv.amount || 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 font-mono text-slate-400">{inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A')}</td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                  inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                }`}>
+                                  {inv.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right flex items-center justify-end gap-1.5">
+                                {inv.status === 'Paid' ? (
+                                  <>
+                                    <button
+                                      onClick={() => generatePDFInvoice(inv.studentObj, inv)}
+                                      className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                    >
+                                      Download Invoice
+                                    </button>
+                                    {currentUser.role === 'Super Admin' && (
                                       <button
-                                        onClick={() => {
-                                          setPaymentModalData({ studentId: inv.studentObj._id, invoiceId: inv._id });
-                                          setIsPaymentModalOpen(true);
-                                        }}
-                                        className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                        onClick={() => handleDeletePayment(inv.studentObj, inv)}
+                                        className="bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white px-2 py-1 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                        title="Delete / Revert Payment"
                                       >
-                                        Mark Paid
+                                        <Trash2 className="w-3.5 h-3.5" /> Delete
                                       </button>
                                     )}
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()}
-
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setPaymentModalData({ studentId: inv.studentObj._id, invoiceId: inv._id });
+                                      setIsPaymentModalOpen(true);
+                                    }}
+                                    className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                  >
+                                    Mark Paid
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             );
           })()}
