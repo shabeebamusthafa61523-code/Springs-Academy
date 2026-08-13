@@ -163,7 +163,9 @@ export default function App() {
   const [invoiceScheduleStartDate, setInvoiceScheduleStartDate] = useState('');
   const [invoiceScheduleEndDate, setInvoiceScheduleEndDate] = useState('');
   const [invoiceScheduleStatusFilter, setInvoiceScheduleStatusFilter] = useState('All');
+  const [invoiceScheduleSortOrder, setInvoiceScheduleSortOrder] = useState('desc');
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [studentSortOrder, setStudentSortOrder] = useState('newest');
   const [feeCollectionSort, setFeeCollectionSort] = useState('date-desc');
   const [feeCollectionSearch, setFeeCollectionSearch] = useState('');
   const [feeCollectionDate, setFeeCollectionDate] = useState('');
@@ -2080,6 +2082,21 @@ export default function App() {
                 (student.batchId && student.batchId.toLowerCase().includes(query)) ||
                 (student.phoneNumber && student.phoneNumber.includes(query))
               );
+            }).sort((a, b) => {
+              if (studentSortOrder === 'newest') {
+                const dateA = new Date(a.admissionDate || a.createdAt || 0);
+                const dateB = new Date(b.admissionDate || b.createdAt || 0);
+                return dateB - dateA;
+              }
+              if (studentSortOrder === 'oldest') {
+                const dateA = new Date(a.admissionDate || a.createdAt || 0);
+                const dateB = new Date(b.admissionDate || b.createdAt || 0);
+                return dateA - dateB;
+              }
+              if (studentSortOrder === 'name') {
+                return (a.name || '').localeCompare(b.name || '');
+              }
+              return 0;
             });
 
             return (
@@ -2109,15 +2126,32 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Search Bar & Count */}
+                {/* Search Bar, Sort & Count */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <input
-                    type="text"
-                    placeholder="Search by student name, roll no, course, batch, phone..."
-                    value={studentSearchQuery}
-                    onChange={(e) => setStudentSearchQuery(e.target.value)}
-                    className="w-full sm:max-w-md bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 placeholder-slate-500 text-xs shadow-inner"
-                  />
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:max-w-xl">
+                    <input
+                      type="text"
+                      placeholder="Search by student name, roll no, course, batch, phone..."
+                      value={studentSearchQuery}
+                      onChange={(e) => setStudentSearchQuery(e.target.value)}
+                      className="flex-1 min-w-[240px] bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 placeholder-slate-500 text-xs shadow-inner"
+                    />
+
+                    {/* Sort Dropdown: New & Old */}
+                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300">
+                      <span className="text-[10px] text-slate-500 font-semibold uppercase">Sort:</span>
+                      <select
+                        value={studentSortOrder}
+                        onChange={(e) => setStudentSortOrder(e.target.value)}
+                        className="bg-transparent text-white focus:outline-none text-xs cursor-pointer font-medium"
+                      >
+                        <option value="newest" className="bg-slate-950 text-white">Newest First (New to Old)</option>
+                        <option value="oldest" className="bg-slate-950 text-white">Oldest First (Old to New)</option>
+                        <option value="name" className="bg-slate-950 text-white">Student Name (A-Z)</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <span className="text-xs text-slate-500 font-medium">Showing {filteredStudents.length} of {visibleStudents.length} students</span>
                 </div>
 
@@ -2625,9 +2659,15 @@ export default function App() {
               return true;
             });
 
-            const totalAmount = filteredMasterInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
-            const paidAmount = filteredMasterInvoices.filter(i => i.status === 'Paid').reduce((sum, inv) => sum + (inv.amount || 0), 0);
-            const pendingAmount = filteredMasterInvoices.filter(i => i.status === 'Pending').reduce((sum, inv) => sum + (inv.amount || 0), 0);
+            const sortedMasterInvoices = [...filteredMasterInvoices].sort((a, b) => {
+              const dateA = new Date(a.paidOn || a.dueDate || 0);
+              const dateB = new Date(b.paidOn || b.dueDate || 0);
+              return invoiceScheduleSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+            });
+
+            const totalAmount = sortedMasterInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+            const paidAmount = sortedMasterInvoices.filter(i => i.status === 'Paid').reduce((sum, inv) => sum + (inv.amount || 0), 0);
+            const pendingAmount = sortedMasterInvoices.filter(i => i.status === 'Pending').reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
             return (
               <div className="space-y-6">
@@ -2700,6 +2740,19 @@ export default function App() {
                         <option value="Pending">Pending Only</option>
                       </select>
 
+                      {/* Sort Dropdown: New & Old */}
+                      <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase">Sort:</span>
+                        <select
+                          value={invoiceScheduleSortOrder}
+                          onChange={(e) => setInvoiceScheduleSortOrder(e.target.value)}
+                          className="bg-transparent text-white focus:outline-none text-xs cursor-pointer font-medium"
+                        >
+                          <option value="desc" className="bg-slate-950 text-white">Newest First (New to Old)</option>
+                          <option value="asc" className="bg-slate-950 text-white">Oldest First (Old to New)</option>
+                        </select>
+                      </div>
+
                       {/* Reset Filter Button */}
                       {(invoiceScheduleStartDate || invoiceScheduleEndDate || invoiceScheduleStatusFilter !== 'All') && (
                         <button
@@ -2707,6 +2760,7 @@ export default function App() {
                             setInvoiceScheduleStartDate('');
                             setInvoiceScheduleEndDate('');
                             setInvoiceScheduleStatusFilter('All');
+                            setInvoiceScheduleSortOrder('desc');
                           }}
                           className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors cursor-pointer"
                           title="Reset Filters"
@@ -2717,7 +2771,7 @@ export default function App() {
 
                       {/* Download PDF Button */}
                       <button
-                        onClick={() => generateMasterInvoicesPDF(filteredMasterInvoices)}
+                        onClick={() => generateMasterInvoicesPDF(sortedMasterInvoices)}
                         className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer ml-auto shadow-lg shadow-blue-600/20"
                         title="Download PDF Report of Filtered Invoices"
                       >
@@ -2741,12 +2795,12 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60">
-                        {filteredMasterInvoices.length === 0 ? (
+                        {sortedMasterInvoices.length === 0 ? (
                           <tr>
                             <td colSpan="7" className="text-center py-6 text-slate-500">No invoices match the selected date/status filters.</td>
                           </tr>
                         ) : (
-                          filteredMasterInvoices.map((inv, idx) => (
+                          sortedMasterInvoices.map((inv, idx) => (
                             <tr key={inv._id || idx} className="hover:bg-slate-900/50 transition-colors">
                               <td className="px-4 py-3 font-mono font-semibold text-blue-400">{inv.invoiceNumber || 'INV-001'}</td>
                               <td className="px-4 py-3 font-medium text-white">{inv.studentName} <span className="text-[10px] text-slate-500 font-mono">({inv.studentRoll})</span></td>
