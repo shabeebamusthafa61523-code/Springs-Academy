@@ -92,25 +92,57 @@ export const recordFeePayment = async (req, res) => {
     const studentIdObj = mongoose.Types.ObjectId.isValid(studentIdStr) ? new mongoose.Types.ObjectId(studentIdStr) : null;
     const queryIdFilter = studentIdObj ? { $in: [studentIdStr, studentIdObj] } : studentIdStr;
 
-    // 1. Find oldest pending invoice for student and mark as Paid
     let pendingInvoices = await Invoice.find({ studentId: queryIdFilter, status: 'Pending' }).sort({ dueDate: 1 });
+
+    // 1. Apply exact payment amount entered by user to pending invoices / receipts
+    let remainingPaymentToApply = numericAmount;
     let invoiceUpdated = null;
 
     if (pendingInvoices && pendingInvoices.length > 0) {
-      const oldestInvoice = pendingInvoices[0];
-      oldestInvoice.status = 'Paid';
-      oldestInvoice.paymentMethod = paymentMethod || 'Cash';
-      oldestInvoice.paidOn = date ? new Date(date) : new Date();
-      if (upiScreenshot) oldestInvoice.upiScreenshot = upiScreenshot;
-      await oldestInvoice.save();
-      invoiceUpdated = oldestInvoice;
-    } else {
-      // Create new paid receipt invoice with guaranteed unique invoice number
+      for (const oldestInvoice of pendingInvoices) {
+        if (remainingPaymentToApply <= 0) break;
+
+        if (remainingPaymentToApply >= oldestInvoice.amount) {
+          // Full payment for this scheduled pending invoice
+          remainingPaymentToApply -= oldestInvoice.amount;
+          oldestInvoice.status = 'Paid';
+          oldestInvoice.paymentMethod = paymentMethod || 'Cash';
+          oldestInvoice.paidOn = date ? new Date(date) : new Date();
+          if (upiScreenshot) oldestInvoice.upiScreenshot = upiScreenshot;
+          await oldestInvoice.save();
+          if (!invoiceUpdated) invoiceUpdated = oldestInvoice;
+        } else {
+          // Partial payment for this scheduled pending invoice
+          const paidPartAmount = remainingPaymentToApply;
+          oldestInvoice.amount -= paidPartAmount; // Remaining pending amount on this invoice
+          await oldestInvoice.save();
+
+          // Create a new paid receipt invoice for the exact paid amount
+          const invoiceNumber = await generateUniqueInvoiceNumber();
+          invoiceUpdated = await Invoice.create({
+            invoiceNumber,
+            studentId: studentIdObj || studentIdStr,
+            amount: paidPartAmount,
+            dueDate: date || new Date().toISOString().split('T')[0],
+            status: 'Paid',
+            paymentMethod: paymentMethod || 'Cash',
+            paidOn: date ? new Date(date) : new Date(),
+            upiScreenshot: upiScreenshot || null,
+            particulars: `Fee Collection Receipt - ${paymentMethod || 'Cash'}`
+          });
+          remainingPaymentToApply = 0;
+          break;
+        }
+      }
+    }
+
+    if (!invoiceUpdated || remainingPaymentToApply > 0) {
+      // Create new paid receipt invoice for the exact paid amount (or overflow amount)
       const invoiceNumber = await generateUniqueInvoiceNumber();
-      invoiceUpdated = await Invoice.create({
+      const newPaidInvoice = await Invoice.create({
         invoiceNumber,
         studentId: studentIdObj || studentIdStr,
-        amount: numericAmount,
+        amount: remainingPaymentToApply > 0 ? remainingPaymentToApply : numericAmount,
         dueDate: date || new Date().toISOString().split('T')[0],
         status: 'Paid',
         paymentMethod: paymentMethod || 'Cash',
@@ -118,6 +150,7 @@ export const recordFeePayment = async (req, res) => {
         upiScreenshot: upiScreenshot || null,
         particulars: `Fee Collection Receipt - ${paymentMethod || 'Cash'}`
       });
+      if (!invoiceUpdated) invoiceUpdated = newPaidInvoice;
     }
 
     // 2. Record payment entry in student document if found
