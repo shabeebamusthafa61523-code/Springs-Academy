@@ -216,6 +216,37 @@ export default function App() {
 
   const stats = getStats();
 
+  const getStudentPaymentLogs = (student) => {
+    if (!student) return [];
+
+    const paidInvoicesLogs = (student.invoices || [])
+      .filter(inv => inv.status === 'Paid')
+      .map(inv => ({
+        _id: inv._id,
+        amount: inv.amount,
+        date: inv.paidOn ? String(inv.paidOn).split('T')[0] : inv.dueDate,
+        paymentMethod: inv.paymentMethod || 'Cash',
+        receiptNumber: inv.invoiceNumber || 'INV-REC',
+        upiScreenshot: inv.upiScreenshot || null
+      }));
+
+    const paidInvIds = new Set(paidInvoicesLogs.map(i => String(i._id)));
+
+    const standaloneManualPayments = (student.payments || [])
+      .filter(p => !p.invoiceId || !paidInvIds.has(String(p.invoiceId)))
+      .map((p, idx) => ({
+        _id: p._id || `pay_${idx}_${Date.now()}`,
+        amount: p.amount,
+        date: p.date,
+        paymentMethod: p.paymentMethod || 'Cash',
+        receiptNumber: p.receiptNumber || `REC-${String(idx + 1).padStart(3, '0')}`,
+        upiScreenshot: p.upiScreenshot || null
+      }));
+
+    const combined = [...paidInvoicesLogs, ...standaloneManualPayments];
+    return Array.from(new Map(combined.map(p => [String(p._id), p])).values());
+  };
+
   const handleStudentSubmit = async (e) => {
     e.preventDefault();
     if (!studentForm.name) return;
@@ -2428,47 +2459,51 @@ export default function App() {
                                             </div>
                                           </div>
 
-                                          {student.payments && student.payments.length > 0 && (
-                                            <div>
-                                              <p className="text-[10px] text-slate-400 font-bold uppercase mb-2">Recorded Payment Receipts ({student.payments.length})</p>
-                                              <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                                                {student.payments.map((pay) => (
-                                                  <div key={pay._id} className="flex items-center justify-between bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 text-xs">
-                                                    <div>
-                                                      <p className="font-bold text-emerald-400">+{pay.amount.toLocaleString()}</p>
-                                                      <p className="text-[10px] text-slate-500">{pay.date} • {pay.paymentMethod} • Ref: {pay.receiptNumber}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                      {currentUser.role === 'Super Admin' && (
-                                                        <>
-                                                          <button 
-                                                            onClick={() => openEditPaymentModal(student, pay)}
-                                                            className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                                                            title="Edit payment amount"
-                                                          >
-                                                            <Edit className="w-3 h-3" /> Edit
-                                                          </button>
-                                                          <button 
-                                                            onClick={() => handleDeletePayment(student, pay)}
-                                                            className="bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                                                            title="Delete payment log"
-                                                          >
-                                                            <Trash2 className="w-3 h-3" /> Delete
-                                                          </button>
-                                                        </>
-                                                      )}
-                                                      <button 
-                                                        onClick={() => generatePDFInvoice(student, pay)}
-                                                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer"
-                                                      >
-                                                        Receipt PDF
-                                                      </button>
-                                                    </div>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          )}
+                                          {(() => {
+                                             const logs = getStudentPaymentLogs(student);
+                                             if (logs.length === 0) return null;
+                                             return (
+                                               <div>
+                                                 <p className="text-[10px] text-slate-400 font-bold uppercase mb-2">Recorded Payment Receipts ({logs.length})</p>
+                                                 <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                                   {logs.map((pay) => (
+                                                     <div key={pay._id} className="flex items-center justify-between bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 text-xs">
+                                                       <div>
+                                                         <p className="font-bold text-emerald-400">+{pay.amount.toLocaleString()}</p>
+                                                         <p className="text-[10px] text-slate-500">{pay.date} • {pay.paymentMethod} • Ref: {pay.receiptNumber}</p>
+                                                       </div>
+                                                       <div className="flex items-center gap-1.5">
+                                                         {currentUser.role === 'Super Admin' && (
+                                                           <>
+                                                             <button 
+                                                               onClick={() => openEditPaymentModal(student, pay)}
+                                                               className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                                               title="Edit payment amount"
+                                                             >
+                                                               <Edit className="w-3 h-3" /> Edit
+                                                             </button>
+                                                             <button 
+                                                               onClick={() => handleDeletePayment(student, pay)}
+                                                               className="bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                                               title="Delete payment log"
+                                                             >
+                                                               <Trash2 className="w-3 h-3" /> Delete
+                                                             </button>
+                                                           </>
+                                                         )}
+                                                         <button 
+                                                           onClick={() => generatePDFInvoice(student, pay)}
+                                                           className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer"
+                                                         >
+                                                           Receipt PDF
+                                                         </button>
+                                                       </div>
+                                                     </div>
+                                                   ))}
+                                                 </div>
+                                               </div>
+                                             );
+                                           })()}
                                         </div>
 
                                       </div>
@@ -3120,19 +3155,7 @@ export default function App() {
 
                           {/* Logged Payments & Paid Invoices History */}
                           {(() => {
-                            const paidInvoicesLogs = (student.invoices || [])
-                              .filter(inv => inv.status === 'Paid')
-                              .map(inv => ({
-                                _id: inv._id,
-                                amount: inv.amount,
-                                date: inv.paidOn ? String(inv.paidOn).split('T')[0] : inv.dueDate,
-                                paymentMethod: inv.paymentMethod || 'Cash',
-                                receiptNumber: inv.invoiceNumber || 'INV-REC'
-                              }));
-
-                            const manualPayments = student.payments || [];
-                            const combinedLogs = [...paidInvoicesLogs, ...manualPayments];
-
+                            const combinedLogs = getStudentPaymentLogs(student);
                             if (combinedLogs.length === 0) return null;
 
                             return (
@@ -4268,55 +4291,59 @@ export default function App() {
                     <p className="text-xs text-slate-500 mt-2">Total Package: {(viewingStudent?.ledger?.totalPackageAmount || 0).toLocaleString()} | Paid: {(viewingStudent?.ledger?.amountPaid || 0).toLocaleString()}</p>
                   </div>
 
-                  {viewingStudent.payments && viewingStudent.payments.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-bold text-white mb-2">Payment History</h4>
-                      <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                        {viewingStudent.payments.map(pay => (
-                          <div key={pay._id} className="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800">
-                            <div>
-                              <p className="font-semibold text-emerald-400">{pay.amount.toLocaleString()}</p>
-                              <p className="text-[10px] text-slate-500">{pay.date}  |  {pay.paymentMethod}</p>
+                  {(() => {
+                    const logs = getStudentPaymentLogs(viewingStudent);
+                    if (logs.length === 0) return null;
+                    return (
+                      <div className="mb-4">
+                        <h4 className="text-sm font-bold text-white mb-2">Payment History ({logs.length})</h4>
+                        <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                          {logs.map(pay => (
+                            <div key={pay._id} className="flex items-center justify-between bg-slate-900 p-3 rounded-xl border border-slate-800">
+                              <div>
+                                <p className="font-semibold text-emerald-400">₹{pay.amount.toLocaleString()}</p>
+                                <p className="text-[10px] text-slate-500">{pay.date}  |  {pay.paymentMethod}  |  Ref: {pay.receiptNumber}</p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {currentUser.role === 'Super Admin' && (
+                                  <>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEditPaymentModal(viewingStudent, pay);
+                                      }}
+                                      className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                    >
+                                      <Edit className="w-3 h-3" /> Edit
+                                    </button>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeletePayment(viewingStudent, pay);
+                                      }}
+                                      className="bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                      title="Delete payment log"
+                                    >
+                                      <Trash2 className="w-3 h-3" /> Delete
+                                    </button>
+                                  </>
+                                )}
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    generatePDFInvoice(viewingStudent, pay);
+                                  }}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                                >
+                                  Invoice
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                              {currentUser.role === 'Super Admin' && (
-                                <>
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openEditPaymentModal(viewingStudent, pay);
-                                    }}
-                                    className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                                  >
-                                    <Edit className="w-3 h-3" /> Edit
-                                  </button>
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeletePayment(viewingStudent, pay);
-                                    }}
-                                    className="bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                                    title="Delete payment log"
-                                  >
-                                    <Trash2 className="w-3 h-3" /> Delete
-                                  </button>
-                                </>
-                              )}
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  generatePDFInvoice(viewingStudent, pay);
-                                }}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                              >
-                                Invoice
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </>
               )}
             </div>
