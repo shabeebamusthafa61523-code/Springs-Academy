@@ -135,24 +135,31 @@ export const resetPasswordByPhone = async (req, res) => {
       return res.status(400).json({ message: 'New password must be at least 4 characters long.' });
     }
 
-    const cleanInputPhone = phoneNumber.trim().replace(/\D/g, '');
-    const rawInputPhone = phoneNumber.trim();
+    const digitsOnly = phoneNumber.replace(/\D/g, '');
+    const last10Digits = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+
+    if (!last10Digits) {
+      return res.status(400).json({ message: 'Invalid phone number format.' });
+    }
 
     const users = await User.find({});
     const user = users.find(u => {
-      if (!u.phoneNumber) return false;
-      const cleanUserPhone = u.phoneNumber.replace(/\D/g, '');
-      return (cleanInputPhone.length > 0 && cleanUserPhone.includes(cleanInputPhone)) || u.phoneNumber.trim() === rawInputPhone;
+      const storedPhone = u.phoneNumber || u.phone || '';
+      if (!storedPhone) return false;
+      const userDigits = storedPhone.replace(/\D/g, '');
+      const userLast10 = userDigits.length >= 10 ? userDigits.slice(-10) : userDigits;
+      return userLast10 === last10Digits || userDigits === digitsOnly;
     });
 
     if (!user) {
-      return res.status(404).json({ message: 'No registered user account found with this phone number.' });
+      console.log(`Failed phone lookup for input '${phoneNumber}' (extracted 10-digits: '${last10Digits}')`);
+      return res.status(404).json({ message: `No registered user account found with phone number ending in '${last10Digits}'.` });
     }
 
     user.password = newPassword;
     await user.save();
 
-    console.log(`✓ MongoDB Atlas: Successfully reset password for user [${user.username || user.name}] via phone!`);
+    console.log(`✓ MongoDB Atlas: Successfully reset password for user [${user.username || user.name || user.email}] via phone!`);
 
     return res.status(200).json({
       message: 'Password reset successfully!',

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AppContext = createContext();
 
@@ -91,116 +91,116 @@ export const AppProvider = ({ children }) => {
   };
 
   // Fetch Live Data directly from MongoDB Atlas backend API concurrently on load and session changes
-  useEffect(() => {
-    const fetchAtlasData = async () => {
-      try {
-        // Fetch public endpoints (courses, extra-incomes)
-        const [courseRes, incomeRes] = await Promise.all([
-          fetch(`${API_URL}/api/courses`).catch(() => null),
-          fetch(`${API_URL}/api/extra-incomes`).catch(() => null)
-        ]);
+  const fetchAtlasData = useCallback(async () => {
+    try {
+      // Fetch public endpoints (courses, extra-incomes)
+      const [courseRes, incomeRes] = await Promise.all([
+        fetch(`${API_URL}/api/courses`).catch(() => null),
+        fetch(`${API_URL}/api/extra-incomes`).catch(() => null)
+      ]);
 
-        if (courseRes && courseRes.ok) {
-          const courseData = await courseRes.json();
-          if (Array.isArray(courseData)) {
-            setCourses(courseData);
-            localStorage.setItem('agy_cached_courses', JSON.stringify(courseData));
-          }
+      if (courseRes && courseRes.ok) {
+        const courseData = await courseRes.json();
+        if (Array.isArray(courseData)) {
+          setCourses(courseData);
+          localStorage.setItem('agy_cached_courses', JSON.stringify(courseData));
         }
-
-        if (incomeRes && incomeRes.ok) {
-          const incomeData = await incomeRes.json();
-          if (Array.isArray(incomeData)) {
-            setExtraIncomes(incomeData);
-            localStorage.setItem('agy_cached_incomes', JSON.stringify(incomeData));
-          }
-        }
-
-        // Only fetch protected data if user is logged in with a valid token
-        if (!currentUser?.token) return;
-
-        const headers = { 'Authorization': `Bearer ${currentUser.token}` };
-
-        // Execute protected MongoDB Atlas fetches concurrently in parallel
-        const [invoiceRes, studentRes, empRes, expRes] = await Promise.all([
-          fetch(`${API_URL}/api/invoices`, { headers }).catch(() => null),
-          fetch(`${API_URL}/api/students`, { headers }).catch(() => null),
-          fetch(`${API_URL}/api/admin/employees`, { headers }).catch(() => null),
-          fetch(`${API_URL}/api/admin/expenses`, { headers }).catch(() => null)
-        ]);
-
-        let atlasInvoices = [];
-        if (invoiceRes && invoiceRes.ok) {
-          const invData = await invoiceRes.json();
-          if (Array.isArray(invData)) atlasInvoices = invData;
-        }
-
-        if (studentRes && studentRes.ok) {
-          const studentData = await studentRes.json();
-          if (Array.isArray(studentData)) {
-            const formatted = studentData.map(s => {
-              const studentAtlasInvoices = atlasInvoices.filter(inv => {
-                const invStudentId = typeof inv.studentId === 'object' ? inv.studentId?._id : inv.studentId;
-                return String(invStudentId) === String(s._id);
-              });
-
-              const allStudentInvoices = [...(s.invoices || []), ...studentAtlasInvoices];
-              const uniqueInvoices = Array.from(
-                new Map(allStudentInvoices.map(i => [String(i._id), i])).values()
-              );
-
-              const paidInvoicesSum = uniqueInvoices
-                .filter(inv => inv.status === 'Paid')
-                .reduce((sum, inv) => sum + inv.amount, 0);
-
-              const paidInvoiceIds = new Set(uniqueInvoices.filter(inv => inv.status === 'Paid').map(i => String(i._id)));
-              const standalonePaymentsSum = (s.payments || [])
-                .filter(p => !p.invoiceId || !paidInvoiceIds.has(String(p.invoiceId)))
-                .reduce((sum, p) => sum + (p.amount || 0), 0);
-
-              const totalPaid = paidInvoicesSum + standalonePaymentsSum;
-              const totalPkg = s.ledger?.totalPackageAmount ?? 45000;
-              const balanceDue = Math.max(0, totalPkg - totalPaid);
-              const paymentStatus = balanceDue === 0 && totalPkg > 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
-
-              return {
-                ...s,
-                invoices: uniqueInvoices,
-                ledger: {
-                  totalPackageAmount: totalPkg,
-                  amountPaid: totalPaid,
-                  balanceDue,
-                  paymentStatus
-                }
-              };
-            });
-            setStudents(formatted);
-            localStorage.setItem('agy_cached_students', JSON.stringify(formatted));
-          }
-        }
-
-        if (empRes && empRes.ok) {
-          const empData = await empRes.json();
-          if (Array.isArray(empData)) {
-            setEmployees(empData);
-            localStorage.setItem('agy_cached_employees', JSON.stringify(empData));
-          }
-        }
-
-        if (expRes && expRes.ok) {
-          const expData = await expRes.json();
-          if (Array.isArray(expData)) {
-            setExpenses(expData);
-            localStorage.setItem('agy_cached_expenses', JSON.stringify(expData));
-          }
-        }
-      } catch (err) {
-        console.warn("Notice: Live data fetch warning:", err);
       }
-    };
 
-    fetchAtlasData();
+      if (incomeRes && incomeRes.ok) {
+        const incomeData = await incomeRes.json();
+        if (Array.isArray(incomeData)) {
+          setExtraIncomes(incomeData);
+          localStorage.setItem('agy_cached_incomes', JSON.stringify(incomeData));
+        }
+      }
+
+      // Only fetch protected data if user is logged in with a valid token
+      if (!currentUser?.token) return;
+
+      const headers = { 'Authorization': `Bearer ${currentUser.token}` };
+
+      // Execute protected MongoDB Atlas fetches concurrently in parallel
+      const [invoiceRes, studentRes, empRes, expRes] = await Promise.all([
+        fetch(`${API_URL}/api/invoices`, { headers }).catch(() => null),
+        fetch(`${API_URL}/api/students`, { headers }).catch(() => null),
+        fetch(`${API_URL}/api/admin/employees`, { headers }).catch(() => null),
+        fetch(`${API_URL}/api/admin/expenses`, { headers }).catch(() => null)
+      ]);
+
+      let atlasInvoices = [];
+      if (invoiceRes && invoiceRes.ok) {
+        const invData = await invoiceRes.json();
+        if (Array.isArray(invData)) atlasInvoices = invData;
+      }
+
+      if (studentRes && studentRes.ok) {
+        const studentData = await studentRes.json();
+        if (Array.isArray(studentData)) {
+          const formatted = studentData.map(s => {
+            const studentAtlasInvoices = atlasInvoices.filter(inv => {
+              const invStudentId = typeof inv.studentId === 'object' ? inv.studentId?._id : inv.studentId;
+              return String(invStudentId) === String(s._id);
+            });
+
+            const allStudentInvoices = [...(s.invoices || []), ...studentAtlasInvoices];
+            const uniqueInvoices = Array.from(
+              new Map(allStudentInvoices.map(i => [String(i._id), i])).values()
+            );
+
+            const paidInvoicesSum = uniqueInvoices
+              .filter(inv => inv.status === 'Paid')
+              .reduce((sum, inv) => sum + inv.amount, 0);
+
+            const paidInvoiceIds = new Set(uniqueInvoices.filter(inv => inv.status === 'Paid').map(i => String(i._id)));
+            const standalonePaymentsSum = (s.payments || [])
+              .filter(p => !p.invoiceId || !paidInvoiceIds.has(String(p.invoiceId)))
+              .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+            const totalPaid = paidInvoicesSum + standalonePaymentsSum;
+            const totalPkg = s.ledger?.totalPackageAmount ?? 45000;
+            const balanceDue = Math.max(0, totalPkg - totalPaid);
+            const paymentStatus = balanceDue === 0 && totalPkg > 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
+
+            return {
+              ...s,
+              invoices: uniqueInvoices,
+              ledger: {
+                totalPackageAmount: totalPkg,
+                amountPaid: totalPaid,
+                balanceDue,
+                paymentStatus
+              }
+            };
+          });
+          setStudents(formatted);
+          localStorage.setItem('agy_cached_students', JSON.stringify(formatted));
+        }
+      }
+
+      if (empRes && empRes.ok) {
+        const empData = await empRes.json();
+        if (Array.isArray(empData)) {
+          setEmployees(empData);
+          localStorage.setItem('agy_cached_employees', JSON.stringify(empData));
+        }
+      }
+
+      if (expRes && expRes.ok) {
+        const expData = await expRes.json();
+        if (Array.isArray(expData)) {
+          setExpenses(expData);
+          localStorage.setItem('agy_cached_expenses', JSON.stringify(expData));
+        }
+      }
+    } catch (err) {
+      console.warn("Notice: Live data fetch warning:", err);
+    }
   }, [currentUser]);
+
+  useEffect(() => {
+    fetchAtlasData();
+  }, [fetchAtlasData]);
 
   // Auth Actions
   const login = async (username, password) => {
@@ -845,8 +845,34 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const deleteEmployee = (empId) => {
-    setEmployees(prev => prev.filter(e => e._id !== empId));
+  const deleteEmployee = async (empId) => {
+    // 1. Optimistic update and update localStorage cache
+    setEmployees(prev => {
+      const updated = prev.filter(e => String(e._id) !== String(empId));
+      localStorage.setItem('agy_cached_employees', JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Permanent deletion from MongoDB Atlas backend API
+    try {
+      const headers = {};
+      if (currentUser?.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+
+      const res = await fetch(`${API_URL}/api/admin/employees/${empId}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (res.ok) {
+        console.log(`✓ MongoDB Atlas: Employee [${empId}] deleted permanently.`);
+        await fetchAtlasData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        console.warn("MongoDB Atlas employee deletion notice:", data);
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas employee deletion network warning:", err);
+    }
   };
 
   const updateEmployeeHRRecord = async (empId, hrData) => {

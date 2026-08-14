@@ -251,7 +251,8 @@ export const updateStudent = async (req, res) => {
 
     if (req.body.name) student.name = req.body.name;
     if (req.body.email) student.email = req.body.email;
-    if (req.body.phoneNumber !== undefined) student.phoneNumber = req.body.phoneNumber;
+    const studentPhone = req.body.phoneNumber !== undefined ? req.body.phoneNumber : (req.body.phone !== undefined ? req.body.phone : undefined);
+    if (studentPhone !== undefined) student.phoneNumber = studentPhone;
     if (req.body.dob !== undefined) student.dob = req.body.dob;
     if (req.body.admissionDate !== undefined) student.admissionDate = req.body.admissionDate;
     if (req.body.address !== undefined) student.address = req.body.address;

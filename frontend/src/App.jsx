@@ -1542,7 +1542,7 @@ export default function App() {
                 {!isSidebarCollapsed && <span>All Student Invoices</span>}
               </button>
 
-              {currentUser.role === 'Super Admin' && (
+              {(currentUser.role === 'Super Admin' || currentUser.role === 'Admin') && (
                 <button
                   onClick={(e) => {
                     if (!isSidebarCollapsed) e.stopPropagation();
@@ -2450,11 +2450,26 @@ export default function App() {
                                               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Financial Summary</p>
                                               <p className="text-xs text-slate-400 mt-0.5">Total Package: <span className="text-white font-bold">{student.ledger?.totalPackageAmount.toLocaleString()}</span> | Paid: <span className="text-emerald-400 font-bold">{student.ledger?.amountPaid.toLocaleString()}</span></p>
                                             </div>
-                                            <div className="text-right">
-                                              <p className="text-[10px] text-slate-400 font-bold uppercase">Balance Due</p>
-                                              <p className={`text-xl font-extrabold ${student.ledger?.balanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                                {student.ledger?.balanceDue.toLocaleString()}
-                                              </p>
+                                            <div className="flex items-center gap-3">
+                                               <div className="text-right">
+                                                 <p className="text-[10px] text-slate-400 font-bold uppercase">Balance Due</p>
+                                                 <p className={`text-xl font-extrabold ${student.ledger?.balanceDue > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                   ₹{student.ledger?.balanceDue.toLocaleString()}
+                                                 </p>
+                                               </div>
+                                               {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && student.ledger?.balanceDue > 0 && (
+                                                 <button
+                                                   onClick={() => {
+                                                     setViewingStudent(student);
+                                                     setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
+                                                     setProfileModalMode('makePayment');
+                                                     setIsStudentProfileModalOpen(true);
+                                                   }}
+                                                   className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-emerald-950/30"
+                                                 >
+                                                   <DollarSign className="w-3.5 h-3.5" /> Record Payment
+                                                 </button>
+                                               )}
                                             </div>
                                           </div>
 
@@ -2725,35 +2740,32 @@ export default function App() {
             );
           })()}
 
-
           {/* TAB: ALL STUDENT INVOICES & PAYMENT SCHEDULE */}
           {activeTab === 'master-invoices' && (() => {
-            const masterInvoicesList = visibleStudents.flatMap(student => 
-              (student.invoices || []).map(inv => ({
+            const masterInvoicesList = visibleStudents.flatMap(student => {
+              const logs = getStudentPaymentLogs(student);
+              return logs.map(inv => ({
                 ...inv,
                 studentName: student.name,
                 studentRoll: student.rollNumber,
                 studentObj: student
-              }))
-            );
+              }));
+            });
 
             const filteredMasterInvoices = masterInvoicesList.filter(inv => {
-              const invDate = inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate ? String(inv.dueDate).split('T')[0] : '');
+              const invDate = inv.date || (inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate ? String(inv.dueDate).split('T')[0] : ''));
               if (invoiceScheduleStartDate && invDate < invoiceScheduleStartDate) return false;
               if (invoiceScheduleEndDate && invDate > invoiceScheduleEndDate) return false;
-              if (invoiceScheduleStatusFilter !== 'All' && inv.status !== invoiceScheduleStatusFilter) return false;
               return true;
             });
 
             const sortedMasterInvoices = [...filteredMasterInvoices].sort((a, b) => {
-              const dateA = new Date(a.paidOn || a.dueDate || 0);
-              const dateB = new Date(b.paidOn || b.dueDate || 0);
+              const dateA = new Date(a.date || a.paidOn || a.dueDate || 0);
+              const dateB = new Date(b.date || b.paidOn || b.dueDate || 0);
               return invoiceScheduleSortOrder === 'desc' ? dateB - dateA : dateA - dateB;
             });
 
-            const totalAmount = sortedMasterInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
-            const paidAmount = sortedMasterInvoices.filter(i => i.status === 'Paid').reduce((sum, inv) => sum + (inv.amount || 0), 0);
-            const pendingAmount = sortedMasterInvoices.filter(i => i.status === 'Pending').reduce((sum, inv) => sum + (inv.amount || 0), 0);
+            const totalPaidAmount = sortedMasterInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
             return (
               <div className="space-y-6">
@@ -2761,30 +2773,22 @@ export default function App() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div>
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                      <FileText className="w-6 h-6 text-blue-400" />
-                      All Student Invoices & Payment Schedule
+                      <FileText className="w-6 h-6 text-emerald-400" />
+                      All Student Invoices & Paid Receipt Schedule
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1">Manage, track, filter by date, and download PDF for all student invoices.</p>
+                    <p className="text-xs text-slate-400 mt-1">Track, filter by date range, and download PDF receipts for all paid student fee logs.</p>
                   </div>
                 </div>
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-center">
-                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Total Invoices</p>
+                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Total Paid Receipt Logs</p>
                     <p className="text-2xl font-bold text-white mt-1">{filteredMasterInvoices.length}</p>
                   </div>
                   <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-center">
-                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Total Amount</p>
-                    <p className="text-2xl font-bold text-blue-400 mt-1">₹{totalAmount.toLocaleString()}</p>
-                  </div>
-                  <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-center">
-                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Paid</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-1">₹{paidAmount.toLocaleString()}</p>
-                  </div>
-                  <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-center">
-                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Pending</p>
-                    <p className="text-2xl font-bold text-amber-400 mt-1">₹{pendingAmount.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Total Amount Collected</p>
+                    <p className="text-2xl font-bold text-emerald-400 mt-1">₹{totalPaidAmount.toLocaleString()}</p>
                   </div>
                 </div>
 
@@ -2815,17 +2819,6 @@ export default function App() {
                         />
                       </div>
 
-                      {/* Status Filter */}
-                      <select
-                        value={invoiceScheduleStatusFilter}
-                        onChange={(e) => setInvoiceScheduleStatusFilter(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none"
-                      >
-                        <option value="All">All Statuses</option>
-                        <option value="Paid">Paid Only</option>
-                        <option value="Pending">Pending Only</option>
-                      </select>
-
                       {/* Sort Dropdown: New & Old */}
                       <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300">
                         <span className="text-[10px] text-slate-500 font-semibold uppercase">Sort:</span>
@@ -2834,19 +2827,17 @@ export default function App() {
                           onChange={(e) => setInvoiceScheduleSortOrder(e.target.value)}
                           className="bg-transparent text-white focus:outline-none text-xs cursor-pointer font-medium"
                         >
-                          <option value="desc" className="bg-slate-950 text-white">Newest First (New to Old)</option>
-                          <option value="asc" className="bg-slate-950 text-white">Oldest First (Old to New)</option>
+                          <option value="desc">Newest First</option>
+                          <option value="asc">Oldest First</option>
                         </select>
                       </div>
 
-                      {/* Reset Filter Button */}
-                      {(invoiceScheduleStartDate || invoiceScheduleEndDate || invoiceScheduleStatusFilter !== 'All') && (
+                      {/* Clear Filters */}
+                      {(invoiceScheduleStartDate || invoiceScheduleEndDate) && (
                         <button
                           onClick={() => {
                             setInvoiceScheduleStartDate('');
                             setInvoiceScheduleEndDate('');
-                            setInvoiceScheduleStatusFilter('All');
-                            setInvoiceScheduleSortOrder('desc');
                           }}
                           className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition-colors cursor-pointer"
                           title="Reset Filters"
@@ -2859,7 +2850,7 @@ export default function App() {
                       <button
                         onClick={() => generateMasterInvoicesPDF(sortedMasterInvoices)}
                         className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer ml-auto shadow-lg shadow-blue-600/20"
-                        title="Download PDF Report of Filtered Invoices"
+                        title="Download PDF Report of Filtered Paid Invoices"
                       >
                         <Download className="w-3.5 h-3.5" />
                         Download PDF Report
@@ -2871,11 +2862,11 @@ export default function App() {
                     <table className="w-full text-left text-xs text-slate-300">
                       <thead className="bg-slate-900/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800">
                         <tr>
-                          <th className="px-4 py-3">Invoice #</th>
+                          <th className="px-4 py-3">Receipt / Invoice #</th>
                           <th className="px-4 py-3">Student</th>
-                          <th className="px-4 py-3">Particulars</th>
-                          <th className="px-4 py-3">Amount</th>
-                          <th className="px-4 py-3">Due / Paid Date</th>
+                          <th className="px-4 py-3">Particulars & Method</th>
+                          <th className="px-4 py-3">Amount Paid</th>
+                          <th className="px-4 py-3">Paid Date</th>
                           <th className="px-4 py-3">Status</th>
                           <th className="px-4 py-3 text-right">Action</th>
                         </tr>
@@ -2883,51 +2874,35 @@ export default function App() {
                       <tbody className="divide-y divide-slate-800/60">
                         {sortedMasterInvoices.length === 0 ? (
                           <tr>
-                            <td colSpan="7" className="text-center py-6 text-slate-500">No invoices match the selected date/status filters.</td>
+                            <td colSpan="7" className="text-center py-6 text-slate-500">No paid receipt logs match the selected date filters.</td>
                           </tr>
                         ) : (
                           sortedMasterInvoices.map((inv, idx) => (
                             <tr key={inv._id || idx} className="hover:bg-slate-900/50 transition-colors">
-                              <td className="px-4 py-3 font-mono font-semibold text-blue-400">{inv.invoiceNumber || 'INV-001'}</td>
+                              <td className="px-4 py-3 font-mono font-semibold text-blue-400">{inv.invoiceNumber || 'INV-REC-001'}</td>
                               <td className="px-4 py-3 font-medium text-white">{inv.studentName} <span className="text-[10px] text-slate-500 font-mono">({inv.studentRoll})</span></td>
-                              <td className="px-4 py-3 text-slate-400">{inv.particulars || 'Tuition Fee'}</td>
-                              <td className="px-4 py-3 font-bold text-white">₹{(inv.amount || 0).toLocaleString()}</td>
-                              <td className="px-4 py-3 font-mono text-slate-400">{inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A')}</td>
+                              <td className="px-4 py-3 text-slate-400">{inv.particulars || 'Tuition Fee Payment'} <span className="text-[10px] font-mono text-slate-500">({inv.paymentMethod || 'Cash'})</span></td>
+                              <td className="px-4 py-3 font-bold text-emerald-400">₹{(inv.amount || 0).toLocaleString()}</td>
+                              <td className="px-4 py-3 font-mono text-slate-400">{inv.date || (inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A'))}</td>
                               <td className="px-4 py-3">
-                                <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                                  inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                }`}>
-                                  {inv.status}
+                                <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  Paid
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-right flex items-center justify-end gap-1.5">
-                                {inv.status === 'Paid' ? (
-                                  <>
-                                    <button
-                                      onClick={() => generatePDFInvoice(inv.studentObj, inv)}
-                                      className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
-                                    >
-                                      Download Invoice
-                                    </button>
-                                    {currentUser.role === 'Super Admin' && (
-                                      <button
-                                        onClick={() => handleDeletePayment(inv.studentObj, inv)}
-                                        className="bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white px-2 py-1 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
-                                        title="Delete / Revert Payment"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" /> Delete
-                                      </button>
-                                    )}
-                                  </>
-                                ) : (
+                                <button
+                                  onClick={() => generatePDFInvoice(inv.studentObj, inv)}
+                                  className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                >
+                                  Download Invoice
+                                </button>
+                                {currentUser.role === 'Super Admin' && (
                                   <button
-                                    onClick={() => {
-                                      setPaymentModalData({ studentId: inv.studentObj._id, invoiceId: inv._id });
-                                      setIsPaymentModalOpen(true);
-                                    }}
-                                    className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white px-2.5 py-1 rounded text-xs font-semibold cursor-pointer transition-colors"
+                                    onClick={() => handleDeletePayment(inv.studentObj, inv)}
+                                    className="bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white px-2 py-1 rounded text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                    title="Delete / Revert Payment"
                                   >
-                                    Mark Paid
+                                    <Trash2 className="w-3.5 h-3.5" /> Delete
                                   </button>
                                 )}
                               </td>
@@ -2944,15 +2919,15 @@ export default function App() {
 
 
           {/* TAB: FEE COLLECTION */}
-          {activeTab === 'fee-collection' && currentUser.role !== 'Super Admin' && (
+          {activeTab === 'fee-collection' && currentUser.role === 'Employee' && (
             <div className="bg-amber-500/10 p-8 rounded-2xl border border-amber-500/20 text-center max-w-xl mx-auto my-12">
               <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-3 text-xl">🔒</div>
               <h3 className="text-lg font-bold text-amber-400">Access Restricted</h3>
-              <p className="text-sm text-slate-400 mt-1">The Fee Collection Terminal is strictly restricted to Super Admin accounts.</p>
+              <p className="text-sm text-slate-400 mt-1">The Fee Collection Terminal is restricted to Admin and Super Admin accounts.</p>
             </div>
           )}
 
-          {activeTab === 'fee-collection' && currentUser.role === 'Super Admin' && (() => {
+          {activeTab === 'fee-collection' && currentUser.role !== 'Employee' && (() => {
             const getLatestDate = (student) => {
               const dates = (student.payments || []).map(p => p.date).filter(Boolean);
               if (dates.length > 0) return dates.sort().reverse()[0];
@@ -3139,13 +3114,15 @@ export default function App() {
                               <p className="text-[10px] text-slate-400 uppercase font-semibold">Package Total</p>
                               <div className="flex items-center gap-2">
                                 <p className="text-xs text-white font-bold">₹{(student.ledger?.totalPackageAmount || 0).toLocaleString()}</p>
-                                <button
-                                  onClick={() => openEditLedgerModal(student)}
-                                  className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-semibold"
-                                  title="Edit Package Total, Amount Paid & Remaining Balance Due"
-                                >
-                                  <Edit className="w-3 h-3" /> Edit
-                                </button>
+                                {currentUser.role === 'Super Admin' && (
+                                  <button
+                                    onClick={() => openEditLedgerModal(student)}
+                                    className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-semibold"
+                                    title="Edit Package Total, Amount Paid & Remaining Balance Due"
+                                  >
+                                    <Edit className="w-3 h-3" /> Edit
+                                  </button>
+                                )}
                               </div>
                             </div>
                             <div className="flex justify-between items-center">
@@ -3212,23 +3189,25 @@ export default function App() {
                           })()}
                         </div>
 
-                        <button
-                          onClick={() => {
-                            setViewingStudent(student);
-                            setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
-                            setProfileModalMode('makePayment');
-                            setIsStudentProfileModalOpen(true);
-                          }}
-                          disabled={student.ledger.balanceDue === 0}
-                          className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                            student.ledger.balanceDue > 0 
-                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-lg shadow-emerald-900/20' 
-                              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                          }`}
-                        >
-                          <DollarSign className="w-4 h-4" />
-                          {student.ledger.balanceDue > 0 ? 'Log New Payment' : 'Fully Paid'}
-                        </button>
+                        {(currentUser.role === 'Super Admin' || currentUser.role === 'Admin') && (
+                          <button
+                            onClick={() => {
+                              setViewingStudent(student);
+                              setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
+                              setProfileModalMode('makePayment');
+                              setIsStudentProfileModalOpen(true);
+                            }}
+                            disabled={student.ledger.balanceDue === 0}
+                            className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                              student.ledger.balanceDue > 0 
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-lg shadow-emerald-900/20' 
+                                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                            }`}
+                          >
+                            <DollarSign className="w-4 h-4" />
+                            {student.ledger.balanceDue > 0 ? 'Log New Payment' : 'Fully Paid'}
+                          </button>
+                        )}
 
                       </div>
                     ))}
@@ -3289,30 +3268,34 @@ export default function App() {
                               </td>
                               <td className="py-3.5 px-4 text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => openEditLedgerModal(student)}
-                                    className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
-                                    title="Edit Package Total, Amount Paid & Remaining Balance Due"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" /> Edit
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setViewingStudent(student);
-                                      setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
-                                      setProfileModalMode('makePayment');
-                                      setIsStudentProfileModalOpen(true);
-                                    }}
-                                    disabled={student.ledger.balanceDue === 0}
-                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
-                                      student.ledger.balanceDue > 0 
-                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-md shadow-emerald-900/20' 
-                                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                                    }`}
-                                  >
-                                    <DollarSign className="w-3.5 h-3.5" />
-                                    {student.ledger.balanceDue > 0 ? 'Log Payment' : 'Fully Paid'}
-                                  </button>
+                                  {currentUser.role === 'Super Admin' && (
+                                    <button
+                                      onClick={() => openEditLedgerModal(student)}
+                                      className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                      title="Edit Package Total, Amount Paid & Remaining Balance Due"
+                                    >
+                                      <Edit className="w-3.5 h-3.5" /> Edit
+                                    </button>
+                                  )}
+                                  {(currentUser.role === 'Super Admin' || currentUser.role === 'Admin') && (
+                                    <button
+                                      onClick={() => {
+                                        setViewingStudent(student);
+                                        setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
+                                        setProfileModalMode('makePayment');
+                                        setIsStudentProfileModalOpen(true);
+                                      }}
+                                      disabled={student.ledger.balanceDue === 0}
+                                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
+                                        student.ledger.balanceDue > 0 
+                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-md shadow-emerald-900/20' 
+                                          : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                      }`}
+                                    >
+                                      <DollarSign className="w-3.5 h-3.5" />
+                                      {student.ledger.balanceDue > 0 ? 'Log Payment' : 'Fully Paid'}
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -4384,6 +4367,14 @@ export default function App() {
             </div>
 
             <div className="pt-4 flex flex-wrap gap-2 border-t border-slate-800">
+              {(currentUser?.role === 'Super Admin' || currentUser?.role === 'Admin') && (viewingStudent?.ledger?.balanceDue || 0) > 0 && (
+                <button onClick={() => {
+                  setNewInstallmentForm({ amount: viewingStudent.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
+                  setProfileModalMode('makePayment');
+                }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex-1 cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950/20">
+                  <DollarSign className="w-4 h-4" /> Log Fee Payment
+                </button>
+              )}
               <button onClick={() => {
                 setEditingStudentForm({ ...viewingStudent });
                 setProfileModalMode('edit');

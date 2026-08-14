@@ -48,6 +48,8 @@ export const updateEmployeeHR = async (req, res) => {
       return res.status(404).json({ message: 'Employee not found' });
     }
 
+    const inputPhone = phoneNumber !== undefined ? phoneNumber : (req.body.phone !== undefined ? req.body.phone : undefined);
+
     if (name !== undefined) employee.name = name;
     if (email !== undefined) employee.email = email;
     if (role !== undefined) employee.role = role;
@@ -56,7 +58,7 @@ export const updateEmployeeHR = async (req, res) => {
     if (department !== undefined) employee.department = department;
     if (designation !== undefined) employee.designation = designation;
     if (salary !== undefined) employee.salary = salary;
-    if (phoneNumber !== undefined) employee.phoneNumber = phoneNumber;
+    if (inputPhone !== undefined) employee.phoneNumber = inputPhone;
     if (address !== undefined) employee.address = address;
     if (qualification !== undefined) employee.qualification = qualification;
 
@@ -64,6 +66,25 @@ export const updateEmployeeHR = async (req, res) => {
     res.json({ message: 'Employee HR records updated successfully', employee });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete Staff / Employee Permanently (Super Admin / Admin)
+export const deleteEmployee = async (req, res) => {
+  const { employeeId } = req.params;
+  try {
+    const employee = await User.findById(employeeId);
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found in database.' });
+    }
+
+    await User.findByIdAndDelete(employeeId);
+    console.log(`✓ MongoDB Atlas: Successfully deleted staff record [${employee.name} / ${employee.email}] permanently.`);
+
+    return res.status(200).json({ message: `Employee ${employee.name} deleted permanently from MongoDB Atlas.` });
+  } catch (error) {
+    console.error("Error deleting employee from MongoDB Atlas:", error);
+    return res.status(500).json({ message: error.message });
   }
 };
 

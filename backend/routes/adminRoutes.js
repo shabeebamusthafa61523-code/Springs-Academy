@@ -3,6 +3,7 @@ import {
   getEmployees,
   createEmployee,
   updateEmployeeHR,
+  deleteEmployee,
   submitExpenseClaim,
   getExpenseClaims,
   reviewExpenseClaim,
@@ -18,7 +19,8 @@ router.route('/employees')
   .post(protect, authorize('Super Admin', 'Admin'), createEmployee);
 
 router.route('/employees/:employeeId')
-  .put(protect, authorize('Super Admin', 'Admin'), updateEmployeeHR);
+  .put(protect, authorize('Super Admin', 'Admin'), updateEmployeeHR)
+  .delete(protect, authorize('Super Admin', 'Admin'), deleteEmployee);
 
 router.route('/expenses')
   .post(protect, submitExpenseClaim)

@@ -95,6 +95,11 @@ const seedDatabase = async () => {
       employee = await User.findOne({ role: 'Employee' });
     }
 
+    // Ensure default seeded accounts have registered phone numbers in MongoDB Atlas
+    await User.updateOne({ email: 'owner@academy.com', $or: [{ phoneNumber: '' }, { phoneNumber: { $exists: false } }] }, { $set: { phoneNumber: '9995982324' } });
+    await User.updateOne({ email: 'finance@academy.com', $or: [{ phoneNumber: '' }, { phoneNumber: { $exists: false } }] }, { $set: { phoneNumber: '9876543210' } });
+    await User.updateOne({ email: 'faculty@academy.com', $or: [{ phoneNumber: '' }, { phoneNumber: { $exists: false } }] }, { $set: { phoneNumber: '9123456789' } });
+
     const studentCount = await Student.countDocuments();
     if (studentCount === 0) {
       console.log('Seeding initial student records...');

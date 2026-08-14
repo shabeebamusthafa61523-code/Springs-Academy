@@ -261,13 +261,13 @@ export default function Auth() {
             ) : (
               <p className="text-sm text-slate-400">
                 {authMode === 'login' ? "Don't have an account?" : "Already have an account?"}
-                <button
+                {/* <button
                   type="button"
                   onClick={() => switchMode(authMode === 'login' ? 'register' : 'login')}
                   className="ml-2 text-blue-600 font-semibold hover:text-blue-500 transition-colors cursor-pointer"
                 >
                   {authMode === 'login' ? 'Register here' : 'Sign in instead'}
-                </button>
+                </button> */}
               </p>
             )}
           </div>
