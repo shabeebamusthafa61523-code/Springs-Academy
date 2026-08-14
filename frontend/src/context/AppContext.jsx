@@ -356,6 +356,7 @@ export const AppProvider = ({ children }) => {
           payments: []
         };
         setStudents(prev => [...prev.filter(s => s._id !== createdStudent._id), createdStudent]);
+        await fetchAtlasData();
         return createdStudent;
       } else if (!res.ok && data && data.message) {
         return { error: data.message };

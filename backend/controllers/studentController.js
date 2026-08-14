@@ -5,14 +5,21 @@ import Invoice from '../models/Invoice.js';
 // Helper to generate Roll Number
 const generateRollNumber = async () => {
   const count = await Student.countDocuments();
-  const nextNum = String(count + 1).padStart(3, '0');
   const year = new Date().getFullYear();
-  return `AG-${year}-ST${nextNum}`;
+  let candidate = `AG-${year}-ST${String(count + 1).padStart(3, '0')}`;
+  let exists = await Student.findOne({ rollNumber: candidate });
+  let attempts = 0;
+  while (exists && attempts < 20) {
+    attempts++;
+    candidate = `AG-${year}-ST${String(count + 1 + attempts).padStart(3, '0')}`;
+    exists = await Student.findOne({ rollNumber: candidate });
+  }
+  return candidate;
 };
 
 // Register Student & Generate Ledger & Invoices
 export const registerStudent = async (req, res) => {
-  const { name, email, batchId, courseName, totalPackageAmount, installments } = req.body;
+  const { name, email, batchId, courseName, totalPackageAmount, installments, admissionDate } = req.body;
 
   try {
     if (email && email.trim() !== '') {
@@ -34,7 +41,7 @@ export const registerStudent = async (req, res) => {
       status: 'Active',
       isConfidentialFee: req.body.isConfidentialFee || false,
       dob: req.body.dob || '',
-      admissionDate: req.body.admissionDate || new Date().toISOString().split('T')[0],
+      admissionDate: admissionDate || req.body.admissionDate || new Date().toISOString().split('T')[0],
       phoneNumber: req.body.phoneNumber || '',
       fatherName: req.body.fatherName || '',
       motherName: req.body.motherName || '',
@@ -49,9 +56,9 @@ export const registerStudent = async (req, res) => {
     // 2. Create Student Fees Ledger
     const ledger = await FeeLedger.create({
       studentId: student._id,
-      totalPackageAmount,
+      totalPackageAmount: parseFloat(totalPackageAmount || 45000),
       amountPaid: 0,
-      balanceDue: totalPackageAmount,
+      balanceDue: parseFloat(totalPackageAmount || 45000),
       paymentStatus: 'Unpaid'
     });
 
@@ -82,8 +89,8 @@ export const registerStudent = async (req, res) => {
       const invoice = await Invoice.create({
         invoiceNumber: invoiceNum,
         studentId: student._id,
-        amount: totalPackageAmount || 45000,
-        dueDate: admissionDate || new Date().toISOString().split('T')[0],
+        amount: parseFloat(totalPackageAmount || 45000),
+        dueDate: admissionDate || req.body.admissionDate || new Date().toISOString().split('T')[0],
         status: 'Pending',
         particulars: 'Course Tuition Fee'
       });
@@ -96,7 +103,7 @@ export const registerStudent = async (req, res) => {
       invoices: createdInvoices
     });
   } catch (error) {
-    console.error(error);
+    console.error("[Register Student Error]:", error);
     res.status(500).json({ message: error.message });
   }
 };
