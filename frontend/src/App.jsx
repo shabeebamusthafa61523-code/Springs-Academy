@@ -204,7 +204,7 @@ export default function App() {
     name: '', email: '', dob: '', admissionDate: new Date().toISOString().split('T')[0], customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, 
     fatherName: '', motherName: '', parentsPhone: '', idPhoto: null, sslcPhoto: null,
     fatherPhone: '', motherPhone: '', // Compatibility helper
-    courseName: '', batchId: '', totalPackageAmount: 45000, installmentCount: 3 
+    courseName: '', batchId: '', totalPackageAmount: 45000 
   });
   const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', role: 'Employee', department: 'Academic', designation: 'Instructor', salary: 40000, username: '', password: '', phoneNumber: '', address: '', qualification: '', profileImage: null });
   const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', description: '', date: new Date().toISOString().split('T')[0] });
@@ -230,7 +230,7 @@ export default function App() {
       return;
     }
 
-    setStudentForm({ name: '', email: '', dob: '', admissionDate: new Date().toISOString().split('T')[0], customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, fatherName: '', motherName: '', parentsPhone: '', idPhoto: null, sslcPhoto: null, courseName: '', batchId: '', totalPackageAmount: 45000, installmentCount: 3, isConfidentialFee: false });
+    setStudentForm({ name: '', email: '', dob: '', admissionDate: new Date().toISOString().split('T')[0], customId: '', address: '', qualification: '', phoneNumber: '', profileImage: null, fatherName: '', motherName: '', parentsPhone: '', idPhoto: null, sslcPhoto: null, courseName: '', batchId: '', totalPackageAmount: 45000, isConfidentialFee: false });
     setIsStudentModalOpen(false);
     toast.success("Student registered successfully! Invoices generated.");
   };
@@ -4014,34 +4014,21 @@ export default function App() {
             </div>
           </div>
 
-          {/* Row 6: Installments Allowed & Confidential Fee Privacy */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-slate-400 font-medium mb-1">Installments Allowed</label>
-              <select value={studentForm.installmentCount} onChange={(e) => setStudentForm({...studentForm, installmentCount: Number(e.target.value)})} className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-                <option value={1}>1 (Upfront)</option>
-                <option value={2}>2 Installments</option>
-                <option value={3}>3 Installments</option>
-                <option value={4}>4 Installments</option>
-                <option value={6}>6 Installments</option>
-              </select>
+          {/* Row 6: Confidential Fee Privacy (Super Admin Only) */}
+          {currentUser.role === 'Super Admin' && (
+            <div className="flex items-center gap-2 p-3.5 bg-slate-900 border border-slate-800 rounded-xl">
+              <input 
+                type="checkbox" 
+                id="isConfidentialFee" 
+                checked={studentForm.isConfidentialFee || false} 
+                onChange={(e) => setStudentForm({ ...studentForm, isConfidentialFee: e.target.checked })} 
+                className="w-4 h-4 text-amber-500 rounded border-slate-700 bg-slate-800 focus:ring-amber-500 accent-amber-500 cursor-pointer"
+              />
+              <label htmlFor="isConfidentialFee" className="text-xs text-amber-400 font-semibold cursor-pointer select-none flex items-center gap-1.5">
+                🔒 Restrict Fee Visibility (Super Admin Only)
+              </label>
             </div>
-
-            {currentUser.role === 'Super Admin' && (
-              <div className="sm:col-span-2 flex items-center gap-2 mt-6 p-3 bg-slate-900 border border-slate-800 rounded-xl">
-                <input 
-                  type="checkbox" 
-                  id="isConfidentialFee" 
-                  checked={studentForm.isConfidentialFee || false} 
-                  onChange={(e) => setStudentForm({ ...studentForm, isConfidentialFee: e.target.checked })} 
-                  className="w-4 h-4 text-amber-500 rounded border-slate-700 bg-slate-800 focus:ring-amber-500 accent-amber-500 cursor-pointer"
-                />
-                <label htmlFor="isConfidentialFee" className="text-xs text-amber-400 font-semibold cursor-pointer select-none flex items-center gap-1.5">
-                  🔒 Restrict Fee Visibility (Super Admin Only)
-                </label>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Row 7: Document & Photo uploads (Cropper Triggered) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-900/30 p-4 rounded-xl border border-slate-800/80">

@@ -76,29 +76,18 @@ export const registerStudent = async (req, res) => {
         createdInvoices.push(invoice);
       }
     } else {
-      // Default: 3 installments split equally
-      const installmentCount = 3;
-      const amountPerInstallment = Math.round(totalPackageAmount / installmentCount);
-      const today = new Date();
-
-      for (let i = 0; i < installmentCount; i++) {
-        const timeSuffix = Date.now().toString().slice(-4);
-        const invoiceNum = `INV-2026-${String(baseCount + i + 1).padStart(4, '0')}-${timeSuffix}${i+1}`;
-        // Calculate due dates at 30-day increments
-        const dueDate = new Date();
-        dueDate.setDate(today.getDate() + (i * 30));
-        const dueDateString = dueDate.toISOString().split('T')[0];
-
-        const invoice = await Invoice.create({
-          invoiceNumber: invoiceNum,
-          studentId: student._id,
-          amount: amountPerInstallment,
-          dueDate: dueDateString,
-          status: 'Pending',
-          particulars: `${i === 0 ? 'First' : i === 1 ? 'Second' : 'Third'} Installment - Course Tuition Fee`
-        });
-        createdInvoices.push(invoice);
-      }
+      // Single Course Tuition Fee scheduled invoice for the total Package Amount
+      const timeSuffix = Date.now().toString().slice(-4);
+      const invoiceNum = `INV-2026-${String(baseCount + 1).padStart(4, '0')}-${timeSuffix}1`;
+      const invoice = await Invoice.create({
+        invoiceNumber: invoiceNum,
+        studentId: student._id,
+        amount: totalPackageAmount || 45000,
+        dueDate: admissionDate || new Date().toISOString().split('T')[0],
+        status: 'Pending',
+        particulars: 'Course Tuition Fee'
+      });
+      createdInvoices.push(invoice);
     }
 
     res.status(201).json({
