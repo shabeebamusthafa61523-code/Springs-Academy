@@ -127,22 +127,34 @@ export const getStudents = async (req, res) => {
       const invoices = await Invoice.find({ studentId: student._id });
       
       const paidInvoices = invoices.filter(inv => inv.status === 'Paid');
-      const calculatedPaid = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+      const paidInvoiceIds = new Set(paidInvoices.map(i => String(i._id)));
+      const paidInvoicesSum = paidInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
-      let ledgerObj;
-      if (!ledger) {
-        ledgerObj = {
-          totalPackageAmount: 45000,
-          amountPaid: calculatedPaid,
-          balanceDue: Math.max(0, 45000 - calculatedPaid),
-          paymentStatus: calculatedPaid >= 45000 ? 'Fully Paid' : calculatedPaid > 0 ? 'Partially Paid' : 'Unpaid'
-        };
-      } else {
-        ledgerObj = ledger.toObject();
-        ledgerObj.amountPaid = Math.max(ledgerObj.amountPaid || 0, calculatedPaid);
-        ledgerObj.balanceDue = Math.max(0, ledgerObj.totalPackageAmount - ledgerObj.amountPaid);
-        ledgerObj.paymentStatus = ledgerObj.balanceDue === 0 ? 'Fully Paid' : ledgerObj.amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+      const standalonePaymentsSum = (student.payments || [])
+        .filter(p => !p.invoiceId || !paidInvoiceIds.has(String(p.invoiceId)))
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      const totalPaid = paidInvoicesSum + standalonePaymentsSum;
+      const totalPkg = ledger ? ledger.totalPackageAmount : 45000;
+      const balanceDue = Math.max(0, totalPkg - totalPaid);
+      const paymentStatus = balanceDue === 0 && totalPkg > 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
+
+      // Keep FeeLedger document synchronized with sum of payment logs
+      if (ledger) {
+        if (ledger.amountPaid !== totalPaid || ledger.balanceDue !== balanceDue || ledger.paymentStatus !== paymentStatus) {
+          ledger.amountPaid = totalPaid;
+          ledger.balanceDue = balanceDue;
+          ledger.paymentStatus = paymentStatus;
+          await ledger.save();
+        }
       }
+
+      const ledgerObj = {
+        totalPackageAmount: totalPkg,
+        amountPaid: totalPaid,
+        balanceDue,
+        paymentStatus
+      };
 
       studentsWithLedger.push({
         ...student.toObject(),

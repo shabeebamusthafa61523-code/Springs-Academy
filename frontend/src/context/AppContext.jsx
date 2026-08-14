@@ -151,8 +151,7 @@ export const AppProvider = ({ children }) => {
                 .filter(p => !p.invoiceId || !paidInvoiceIds.has(String(p.invoiceId)))
                 .reduce((sum, p) => sum + (p.amount || 0), 0);
 
-              const calculatedPaid = paidInvoicesSum + standalonePaymentsSum;
-              const totalPaid = s.ledger?.amountPaid !== undefined ? s.ledger.amountPaid : calculatedPaid;
+              const totalPaid = calculatedPaid;
               const totalPkg = s.ledger?.totalPackageAmount ?? 45000;
               const balanceDue = Math.max(0, totalPkg - totalPaid);
               const paymentStatus = balanceDue === 0 && totalPkg > 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
