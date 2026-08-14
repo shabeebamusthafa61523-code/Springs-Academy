@@ -107,6 +107,14 @@ export default function App() {
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [viewingTransaction, setViewingTransaction] = useState(null);
 
+  const [isEditLedgerModalOpen, setIsEditLedgerModalOpen] = useState(false);
+  const [editingLedgerStudent, setEditingLedgerStudent] = useState(null);
+  const [editLedgerForm, setEditLedgerForm] = useState({
+    totalPackageAmount: 45000,
+    amountPaid: 0,
+    balanceDue: 45000
+  });
+
   // Image Cropping States
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState('');
@@ -465,6 +473,28 @@ export default function App() {
     setOverrideForm({ amount: '', source: 'EMI Interest', date: new Date().toISOString().split('T')[0], paymentMethod: 'UPI', details: '' });
     setIsOverrideModalOpen(false);
     toast.success("Extra income recorded successfully!");
+  };
+
+  const openEditLedgerModal = (student) => {
+    setEditingLedgerStudent(student);
+    const totalPkg = student.ledger?.totalPackageAmount ?? 45000;
+    const paid = student.ledger?.amountPaid ?? 0;
+    const bal = student.ledger?.balanceDue ?? Math.max(0, totalPkg - paid);
+    setEditLedgerForm({
+      totalPackageAmount: totalPkg,
+      amountPaid: paid,
+      balanceDue: bal
+    });
+    setIsEditLedgerModalOpen(true);
+  };
+
+  const handleEditLedgerSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingLedgerStudent) return;
+    toast.loading("Updating student fee ledger...", { id: "ledger-toast" });
+    await overrideStudentLedger(editingLedgerStudent._id, editLedgerForm);
+    toast.success("Fee ledger updated successfully!", { id: "ledger-toast" });
+    setIsEditLedgerModalOpen(false);
   };
 
   const handleCourseSubmit = async (e) => {
@@ -3062,10 +3092,19 @@ export default function App() {
                             </span>
                           </div>
 
-                          <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-3 space-y-1">
+                           <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800/60 mb-3 space-y-1 relative">
                             <div className="flex justify-between items-center">
                               <p className="text-[10px] text-slate-400 uppercase font-semibold">Package Total</p>
-                              <p className="text-xs text-white font-bold">₹{(student.ledger?.totalPackageAmount || 0).toLocaleString()}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs text-white font-bold">₹{(student.ledger?.totalPackageAmount || 0).toLocaleString()}</p>
+                                <button
+                                  onClick={() => openEditLedgerModal(student)}
+                                  className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-semibold"
+                                  title="Edit Package Total, Amount Paid & Remaining Balance Due"
+                                >
+                                  <Edit className="w-3 h-3" /> Edit
+                                </button>
+                              </div>
                             </div>
                             <div className="flex justify-between items-center">
                               <p className="text-[10px] text-emerald-400 uppercase font-semibold">Amount Paid</p>
@@ -3219,23 +3258,32 @@ export default function App() {
                                 </span>
                               </td>
                               <td className="py-3.5 px-4 text-right">
-                                <button
-                                  onClick={() => {
-                                    setViewingStudent(student);
-                                    setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
-                                    setProfileModalMode('makePayment');
-                                    setIsStudentProfileModalOpen(true);
-                                  }}
-                                  disabled={student.ledger.balanceDue === 0}
-                                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
-                                    student.ledger.balanceDue > 0 
-                                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-md shadow-emerald-900/20' 
-                                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                                  }`}
-                                >
-                                  <DollarSign className="w-3.5 h-3.5" />
-                                  {student.ledger.balanceDue > 0 ? 'Log Payment' : 'Fully Paid'}
-                                </button>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => openEditLedgerModal(student)}
+                                    className="bg-amber-500/15 text-amber-400 hover:bg-amber-500 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                                    title="Edit Package Total, Amount Paid & Remaining Balance Due"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" /> Edit
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setViewingStudent(student);
+                                      setNewInstallmentForm({ amount: student.ledger.balanceDue, date: new Date().toISOString().split('T')[0], method: 'Cash', upiScreenshot: null });
+                                      setProfileModalMode('makePayment');
+                                      setIsStudentProfileModalOpen(true);
+                                    }}
+                                    disabled={student.ledger.balanceDue === 0}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
+                                      student.ledger.balanceDue > 0 
+                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-md shadow-emerald-900/20' 
+                                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    <DollarSign className="w-3.5 h-3.5" />
+                                    {student.ledger.balanceDue > 0 ? 'Log Payment' : 'Fully Paid'}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -4511,6 +4559,94 @@ export default function App() {
         )}
           </>
         )}
+      </Modal>
+
+      {/* Edit Student Fee Ledger Modal (Package Total, Amount Paid, Remaining Balance Due) */}
+      <Modal
+        isOpen={isEditLedgerModalOpen}
+        onClose={() => setIsEditLedgerModalOpen(false)}
+        title={`Edit Fee Ledger — ${editingLedgerStudent?.name || ''}`}
+      >
+        <form onSubmit={handleEditLedgerSubmit} className="space-y-4 text-sm">
+          <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 text-xs text-slate-400 space-y-1">
+            <p className="font-semibold text-slate-300">Student: <span className="text-white font-bold">{editingLedgerStudent?.name}</span> ({editingLedgerStudent?.rollNumber})</p>
+            <p>Course: <span className="text-white font-medium">{editingLedgerStudent?.courseName}</span></p>
+          </div>
+
+          <div>
+            <label className="block text-slate-400 font-medium mb-1">Package Total (INR) *</label>
+            <input
+              type="number"
+              required
+              min="0"
+              value={editLedgerForm.totalPackageAmount}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setEditLedgerForm(prev => {
+                  const newBal = Math.max(0, val - prev.amountPaid);
+                  return { ...prev, totalPackageAmount: val, balanceDue: newBal };
+                });
+              }}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-base font-bold focus:outline-none focus:border-amber-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-emerald-400 font-medium mb-1">Amount Paid (INR) *</label>
+            <input
+              type="number"
+              required
+              min="0"
+              value={editLedgerForm.amountPaid}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setEditLedgerForm(prev => {
+                  const newBal = Math.max(0, prev.totalPackageAmount - val);
+                  return { ...prev, amountPaid: val, balanceDue: newBal };
+                });
+              }}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-emerald-400 text-base font-bold focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-rose-400 font-medium mb-1">Remaining Balance Due (INR) *</label>
+            <input
+              type="number"
+              required
+              min="0"
+              value={editLedgerForm.balanceDue}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setEditLedgerForm(prev => {
+                  const newPaid = Math.max(0, prev.totalPackageAmount - val);
+                  return { ...prev, balanceDue: val, amountPaid: newPaid };
+                });
+              }}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-rose-400 text-base font-bold focus:outline-none focus:border-rose-500"
+            />
+          </div>
+
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300">
+            💡 Adjusting these values will update the student's financial ledger in MongoDB Atlas live across all terminals.
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsEditLedgerModalOpen(false)}
+              className="flex-1 bg-slate-800 hover:bg-slate-700 text-white rounded-xl py-2.5 font-semibold transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-2.5 font-semibold transition-all cursor-pointer shadow-lg shadow-amber-900/20"
+            >
+              Save Ledger Changes
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* 2. Add Extra Income Modal */}

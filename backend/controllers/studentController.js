@@ -172,30 +172,46 @@ export const getStudents = async (req, res) => {
 // Override / Adjust package amount or write-off outstanding debt
 export const overrideLedger = async (req, res) => {
   const { studentId } = req.params;
-  const { newPackageAmount, writeOffAmount, discountAmount } = req.body;
+  const { totalPackageAmount, newPackageAmount, amountPaid, balanceDue, writeOffAmount, discountAmount } = req.body;
 
   try {
-    const ledger = await FeeLedger.findOne({ studentId });
+    const studentIdStr = String(studentId);
+    const studentIdObj = mongoose.Types.ObjectId.isValid(studentIdStr) ? new mongoose.Types.ObjectId(studentIdStr) : null;
+    const queryIdFilter = studentIdObj ? { $in: [studentIdStr, studentIdObj] } : studentIdStr;
+
+    let ledger = await FeeLedger.findOne({ studentId: queryIdFilter });
     if (!ledger) {
-      return res.status(404).json({ message: 'Ledger not found for student' });
+      ledger = await FeeLedger.create({
+        studentId: studentIdObj || studentIdStr,
+        totalPackageAmount: parseFloat(totalPackageAmount || newPackageAmount || 45000),
+        amountPaid: parseFloat(amountPaid || 0),
+        balanceDue: parseFloat(balanceDue || 45000),
+        paymentStatus: 'Unpaid'
+      });
     }
 
-    if (newPackageAmount !== undefined) {
-      ledger.totalPackageAmount = newPackageAmount;
+    if (totalPackageAmount !== undefined || newPackageAmount !== undefined) {
+      ledger.totalPackageAmount = parseFloat(totalPackageAmount !== undefined ? totalPackageAmount : newPackageAmount);
     }
 
     if (discountAmount !== undefined) {
-      ledger.totalPackageAmount -= discountAmount;
+      ledger.totalPackageAmount -= parseFloat(discountAmount);
     }
 
-    if (writeOffAmount !== undefined) {
-      ledger.balanceDue = Math.max(0, ledger.balanceDue - writeOffAmount);
+    if (amountPaid !== undefined) {
+      ledger.amountPaid = parseFloat(amountPaid);
+    }
+
+    if (balanceDue !== undefined) {
+      ledger.balanceDue = parseFloat(balanceDue);
+    } else if (writeOffAmount !== undefined) {
+      ledger.balanceDue = Math.max(0, ledger.balanceDue - parseFloat(writeOffAmount));
     } else {
-      ledger.balanceDue = ledger.totalPackageAmount - ledger.amountPaid;
+      ledger.balanceDue = Math.max(0, ledger.totalPackageAmount - ledger.amountPaid);
     }
 
     // Recalculate status
-    if (ledger.balanceDue === 0) {
+    if (ledger.balanceDue === 0 && ledger.totalPackageAmount > 0) {
       ledger.paymentStatus = 'Fully Paid';
     } else if (ledger.amountPaid > 0) {
       ledger.paymentStatus = 'Partially Paid';
@@ -204,7 +220,16 @@ export const overrideLedger = async (req, res) => {
     }
 
     await ledger.save();
-    res.json({ message: 'Ledger adjusted successfully', ledger });
+
+    const student = await Student.findById(studentIdObj || studentIdStr);
+    const invoices = await Invoice.find({ studentId: queryIdFilter });
+
+    res.json({
+      message: 'Student ledger updated successfully in MongoDB Atlas',
+      student,
+      ledger,
+      invoices
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

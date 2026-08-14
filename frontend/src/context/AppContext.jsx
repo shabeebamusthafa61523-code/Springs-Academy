@@ -808,29 +808,41 @@ export const AppProvider = ({ children }) => {
     }));
   };
 
-  const overrideStudentLedger = (studentId, overrideData) => {
+  const overrideStudentLedger = async (studentId, overrideData) => {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (currentUser?.token && currentUser.token !== 'undefined') {
+        headers['Authorization'] = `Bearer ${currentUser.token}`;
+      }
+
+      const res = await fetch(`${API_URL}/api/students/${studentId}/ledger`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(overrideData)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await fetchAtlasData();
+        return data;
+      }
+    } catch (err) {
+      console.warn("MongoDB Atlas ledger override warning:", err);
+    }
+
     setStudents(prev => prev.map(s => {
       if (s._id === studentId) {
-        let newTotal = s.ledger.totalPackageAmount;
-        if (overrideData.discountAmount) {
-          newTotal = Math.max(0, newTotal - parseFloat(overrideData.discountAmount));
-        }
-        if (overrideData.newPackageAmount) {
-          newTotal = parseFloat(overrideData.newPackageAmount);
-        }
-
-        let newBalance = newTotal - s.ledger.amountPaid;
-        if (overrideData.writeOffAmount) {
-          newBalance = Math.max(0, newBalance - parseFloat(overrideData.writeOffAmount));
-        }
-
-        const paymentStatus = newBalance === 0 ? 'Fully Paid' : s.ledger.amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+        const newTotal = overrideData.totalPackageAmount !== undefined ? parseFloat(overrideData.totalPackageAmount) : (overrideData.newPackageAmount !== undefined ? parseFloat(overrideData.newPackageAmount) : s.ledger.totalPackageAmount);
+        const newPaid = overrideData.amountPaid !== undefined ? parseFloat(overrideData.amountPaid) : s.ledger.amountPaid;
+        const newBalance = overrideData.balanceDue !== undefined ? parseFloat(overrideData.balanceDue) : Math.max(0, newTotal - newPaid);
+        const paymentStatus = newBalance === 0 && newTotal > 0 ? 'Fully Paid' : newPaid > 0 ? 'Partially Paid' : 'Unpaid';
 
         return {
           ...s,
           ledger: {
             ...s.ledger,
             totalPackageAmount: newTotal,
+            amountPaid: newPaid,
             balanceDue: newBalance,
             paymentStatus
           }
