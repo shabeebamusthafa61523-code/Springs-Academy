@@ -4421,8 +4421,14 @@ export default function App() {
                 toast.error("Please upload the UPI payment screenshot.");
                 return;
               }
-              await makePayment(viewingStudent._id, newInstallmentForm.amount, newInstallmentForm.date, newInstallmentForm.method, newInstallmentForm.upiScreenshot);
-              toast.success("Payment recorded successfully!");
+              toast.loading("Recording fee payment & generating receipt...", { id: "payment-toast" });
+              const res = await makePayment(viewingStudent._id, newInstallmentForm.amount, newInstallmentForm.date, newInstallmentForm.method, newInstallmentForm.upiScreenshot);
+              if (res && res.invoice) {
+                toast.success("Payment recorded & receipt downloaded successfully!", { id: "payment-toast" });
+                generatePDFInvoice(viewingStudent, res.invoice);
+              } else {
+                toast.success("Payment recorded successfully!", { id: "payment-toast" });
+              }
               setIsStudentProfileModalOpen(false);
             }
           }} className="space-y-4 text-sm">

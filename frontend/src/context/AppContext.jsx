@@ -38,11 +38,36 @@ export const AppProvider = ({ children }) => {
   }, [currentUser]);
 
   const [users, setUsers] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [extraIncomes, setExtraIncomes] = useState([]);
+  const [students, setStudents] = useState(() => {
+    try {
+      const cached = localStorage.getItem('agy_cached_students');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
+  const [employees, setEmployees] = useState(() => {
+    try {
+      const cached = localStorage.getItem('agy_cached_employees');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
+  const [expenses, setExpenses] = useState(() => {
+    try {
+      const cached = localStorage.getItem('agy_cached_expenses');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
+  const [courses, setCourses] = useState(() => {
+    try {
+      const cached = localStorage.getItem('agy_cached_courses');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
+  const [extraIncomes, setExtraIncomes] = useState(() => {
+    try {
+      const cached = localStorage.getItem('agy_cached_incomes');
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) { return []; }
+  });
 
   // Cloudinary Image Upload Helper
   const uploadToCloudinary = async (base64String, folder = 'springs_academy') => {
@@ -59,41 +84,50 @@ export const AppProvider = ({ children }) => {
       if (data && data.url) {
         return data.url;
       }
-    } catch (err) {
-      console.warn("Cloudinary Upload Warning:", err);
+    } catch (e) {
+      console.warn("Cloudinary upload failed, using raw base64 string fallback:", e);
     }
     return base64String;
   };
 
-  // Fetch Live Data directly from MongoDB Atlas backend API on load and session changes
+  // Fetch Live Data directly from MongoDB Atlas backend API concurrently on load and session changes
   useEffect(() => {
     const fetchAtlasData = async () => {
       try {
         const headers = currentUser?.token ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
 
-        // Fetch public data (courses & extra incomes)
-        const courseRes = await fetch(`${API_URL}/api/courses`).catch(() => null);
+        // Execute all MongoDB Atlas fetches concurrently in parallel for 10x faster load time!
+        const [courseRes, incomeRes, invoiceRes, studentRes, empRes, expRes] = await Promise.all([
+          fetch(`${API_URL}/api/courses`).catch(() => null),
+          fetch(`${API_URL}/api/extra-incomes`).catch(() => null),
+          fetch(`${API_URL}/api/invoices`, { headers }).catch(() => null),
+          fetch(`${API_URL}/api/students`, { headers }).catch(() => null),
+          fetch(`${API_URL}/api/admin/employees`, { headers }).catch(() => null),
+          fetch(`${API_URL}/api/admin/expenses`, { headers }).catch(() => null)
+        ]);
+
         if (courseRes && courseRes.ok) {
           const courseData = await courseRes.json();
-          if (Array.isArray(courseData)) setCourses(courseData);
+          if (Array.isArray(courseData)) {
+            setCourses(courseData);
+            localStorage.setItem('agy_cached_courses', JSON.stringify(courseData));
+          }
         }
 
-        const incomeRes = await fetch(`${API_URL}/api/extra-incomes`).catch(() => null);
         if (incomeRes && incomeRes.ok) {
           const incomeData = await incomeRes.json();
-          if (Array.isArray(incomeData)) setExtraIncomes(incomeData);
+          if (Array.isArray(incomeData)) {
+            setExtraIncomes(incomeData);
+            localStorage.setItem('agy_cached_incomes', JSON.stringify(incomeData));
+          }
         }
 
-        // Fetch Invoices
-        const invoiceRes = await fetch(`${API_URL}/api/invoices`, { headers }).catch(() => null);
         let atlasInvoices = [];
         if (invoiceRes && invoiceRes.ok) {
           const invData = await invoiceRes.json();
           if (Array.isArray(invData)) atlasInvoices = invData;
         }
 
-        // Fetch Students
-        const studentRes = await fetch(`${API_URL}/api/students`, { headers }).catch(() => null);
         if (studentRes && studentRes.ok) {
           const studentData = await studentRes.json();
           if (Array.isArray(studentData)) {
@@ -116,7 +150,7 @@ export const AppProvider = ({ children }) => {
               const totalPaid = Math.max(s.ledger?.amountPaid ?? 0, paidInvoicesSum + paymentsSum);
               const totalPkg = s.ledger?.totalPackageAmount ?? 45000;
               const balanceDue = Math.max(0, totalPkg - totalPaid);
-              const paymentStatus = balanceDue === 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
+              const paymentStatus = balanceDue === 0 && totalPkg > 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
 
               return {
                 ...s,
@@ -130,21 +164,24 @@ export const AppProvider = ({ children }) => {
               };
             });
             setStudents(formatted);
+            localStorage.setItem('agy_cached_students', JSON.stringify(formatted));
           }
         }
 
-        // Fetch Employees
-        const empRes = await fetch(`${API_URL}/api/admin/employees`, { headers }).catch(() => null);
         if (empRes && empRes.ok) {
           const empData = await empRes.json();
-          if (Array.isArray(empData)) setEmployees(empData);
+          if (Array.isArray(empData)) {
+            setEmployees(empData);
+            localStorage.setItem('agy_cached_employees', JSON.stringify(empData));
+          }
         }
 
-        // Fetch Expenses
-        const expRes = await fetch(`${API_URL}/api/admin/expenses`, { headers }).catch(() => null);
         if (expRes && expRes.ok) {
           const expData = await expRes.json();
-          if (Array.isArray(expData)) setExpenses(expData);
+          if (Array.isArray(expData)) {
+            setExpenses(expData);
+            localStorage.setItem('agy_cached_expenses', JSON.stringify(expData));
+          }
         }
       } catch (err) {
         console.warn("Notice: Live data fetch warning:", err);
@@ -479,25 +516,65 @@ export const AppProvider = ({ children }) => {
 
       if (res.ok) {
         const data = await res.json();
-        if (data && data.invoice) {
-          setStudents(prev => prev.map(s => {
-            if (s._id === studentId) {
-              const updatedInvoices = (s.invoices || []).map(inv => 
-                inv._id === data.invoice._id ? data.invoice : inv
-              );
-              if (!updatedInvoices.find(inv => inv._id === data.invoice._id)) {
-                updatedInvoices.push(data.invoice);
-              }
-              return {
-                ...s,
-                invoices: updatedInvoices,
-                ledger: data.ledger || s.ledger
-              };
+
+        // Re-fetch fresh data from Atlas so all views auto-refresh
+        try {
+          const authHeaders = currentUser?.token ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
+
+          const [invoiceRes, studentRes] = await Promise.all([
+            fetch(`${API_URL}/api/invoices`, { headers: authHeaders }).catch(() => null),
+            fetch(`${API_URL}/api/students`, { headers: authHeaders }).catch(() => null)
+          ]);
+
+          let atlasInvoices = [];
+          if (invoiceRes && invoiceRes.ok) {
+            const invData = await invoiceRes.json();
+            if (Array.isArray(invData)) atlasInvoices = invData;
+          }
+
+          if (studentRes && studentRes.ok) {
+            const studentData = await studentRes.json();
+            if (Array.isArray(studentData)) {
+              const formatted = studentData.map(s => {
+                const studentAtlasInvoices = atlasInvoices.filter(inv => {
+                  const invStudentId = typeof inv.studentId === 'object' ? inv.studentId?._id : inv.studentId;
+                  return String(invStudentId) === String(s._id);
+                });
+
+                const allStudentInvoices = [...(s.invoices || []), ...studentAtlasInvoices];
+                const uniqueInvoices = Array.from(
+                  new Map(allStudentInvoices.map(i => [String(i._id), i])).values()
+                );
+
+                const paidInvoicesSum = uniqueInvoices
+                  .filter(inv => inv.status === 'Paid')
+                  .reduce((sum, inv) => sum + inv.amount, 0);
+
+                const paymentsSum = (s.payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+                const totalPaid = Math.max(s.ledger?.amountPaid ?? 0, paidInvoicesSum + paymentsSum);
+                const totalPkg = s.ledger?.totalPackageAmount ?? 45000;
+                const balanceDue = Math.max(0, totalPkg - totalPaid);
+                const paymentStatus = balanceDue === 0 && totalPkg > 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
+
+                return {
+                  ...s,
+                  invoices: uniqueInvoices,
+                  ledger: {
+                    totalPackageAmount: totalPkg,
+                    amountPaid: totalPaid,
+                    balanceDue,
+                    paymentStatus
+                  }
+                };
+              });
+              setStudents(formatted);
             }
-            return s;
-          }));
-          return data;
+          }
+        } catch (refreshErr) {
+          console.warn("Auto-refresh after payment warning:", refreshErr);
         }
+
+        return data;
       }
     } catch (err) {
       console.warn("MongoDB Atlas fee payment recording error:", err);

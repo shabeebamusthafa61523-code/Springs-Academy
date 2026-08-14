@@ -206,7 +206,7 @@ const startServer = async () => {
     console.log('Failed to connect to MongoDB, starting Express anyway. Server will work on mock data operations or retry connections.');
   }
   
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
   });
 };
