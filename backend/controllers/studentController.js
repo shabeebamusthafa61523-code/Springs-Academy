@@ -57,14 +57,14 @@ export const registerStudent = async (req, res) => {
 
     // 3. Create Dynamic Invoices
     const createdInvoices = [];
-    const count = await Invoice.countDocuments();
-    let currentInvoiceCounter = count + 1;
+    const baseCount = await Invoice.countDocuments();
 
     if (installments && installments.length > 0) {
       // Custom installments provided
       for (let i = 0; i < installments.length; i++) {
         const inst = installments[i];
-        const invoiceNum = `INV-2026-${String(currentInvoiceCounter++).padStart(5, '0')}`;
+        const timeSuffix = Date.now().toString().slice(-4);
+        const invoiceNum = `INV-2026-${String(baseCount + i + 1).padStart(4, '0')}-${timeSuffix}${i+1}`;
         const invoice = await Invoice.create({
           invoiceNumber: invoiceNum,
           studentId: student._id,
@@ -82,7 +82,8 @@ export const registerStudent = async (req, res) => {
       const today = new Date();
 
       for (let i = 0; i < installmentCount; i++) {
-        const invoiceNum = `INV-2026-${String(currentInvoiceCounter++).padStart(5, '0')}`;
+        const timeSuffix = Date.now().toString().slice(-4);
+        const invoiceNum = `INV-2026-${String(baseCount + i + 1).padStart(4, '0')}-${timeSuffix}${i+1}`;
         // Calculate due dates at 30-day increments
         const dueDate = new Date();
         dueDate.setDate(today.getDate() + (i * 30));

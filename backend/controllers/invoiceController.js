@@ -59,17 +59,41 @@ export const updateInvoiceStatus = async (req, res) => {
   }
 };
 
+// Helper to generate guaranteed unique invoice number
+const generateUniqueInvoiceNumber = async () => {
+  const count = await Invoice.countDocuments();
+  const timeSuffix = Date.now().toString().slice(-4);
+  const randomNum = Math.floor(100 + Math.random() * 900);
+  let candidate = `INV-2026-${String(count + 1).padStart(4, '0')}-${timeSuffix}`;
+  let exists = await Invoice.findOne({ invoiceNumber: candidate });
+  let attempts = 0;
+  while (exists && attempts < 10) {
+    attempts++;
+    candidate = `INV-2026-${String(count + 1 + attempts).padStart(4, '0')}-${Date.now().toString().slice(-4)}${randomNum}`;
+    exists = await Invoice.findOne({ invoiceNumber: candidate });
+  }
+  return candidate;
+};
+
 // Record direct fee payment and reconcile student ledger
 export const recordFeePayment = async (req, res) => {
   const { studentId, amount, date, paymentMethod, upiScreenshot } = req.body;
   try {
+    if (!studentId) {
+      return res.status(400).json({ message: 'Student ID is required' });
+    }
+
     const numericAmount = parseFloat(amount);
     if (!numericAmount || numericAmount <= 0) {
       return res.status(400).json({ message: 'Valid payment amount is required' });
     }
 
+    const studentIdStr = String(studentId);
+    const studentIdObj = mongoose.Types.ObjectId.isValid(studentIdStr) ? new mongoose.Types.ObjectId(studentIdStr) : null;
+    const queryIdFilter = studentIdObj ? { $in: [studentIdStr, studentIdObj] } : studentIdStr;
+
     // 1. Find oldest pending invoice for student and mark as Paid
-    let pendingInvoices = await Invoice.find({ studentId, status: 'Pending' }).sort({ dueDate: 1 });
+    let pendingInvoices = await Invoice.find({ studentId: queryIdFilter, status: 'Pending' }).sort({ dueDate: 1 });
     let invoiceUpdated = null;
 
     if (pendingInvoices && pendingInvoices.length > 0) {
@@ -81,12 +105,11 @@ export const recordFeePayment = async (req, res) => {
       await oldestInvoice.save();
       invoiceUpdated = oldestInvoice;
     } else {
-      // Create new paid receipt invoice
-      const count = await Invoice.countDocuments();
-      const invoiceNumber = `INV-2026-${String(count + 1).padStart(5, '0')}`;
+      // Create new paid receipt invoice with guaranteed unique invoice number
+      const invoiceNumber = await generateUniqueInvoiceNumber();
       invoiceUpdated = await Invoice.create({
         invoiceNumber,
-        studentId,
+        studentId: studentIdObj || studentIdStr,
         amount: numericAmount,
         dueDate: date || new Date().toISOString().split('T')[0],
         status: 'Paid',
@@ -97,24 +120,57 @@ export const recordFeePayment = async (req, res) => {
       });
     }
 
-    // 2. Recalculate Student FeeLedger
-    const paidInvoices = await Invoice.find({ studentId, status: 'Paid' });
-    const totalPaid = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    // 2. Record payment entry in student document if found
+    const studentDoc = await Student.findById(studentIdObj || studentIdStr).catch(() => null);
+    if (studentDoc) {
+      if (!studentDoc.payments) studentDoc.payments = [];
+      const existingPay = studentDoc.payments.find(p => p.invoiceId && String(p.invoiceId) === String(invoiceUpdated._id));
+      if (!existingPay) {
+        studentDoc.payments.push({
+          amount: numericAmount,
+          date: date || new Date().toISOString().split('T')[0],
+          paymentMethod: paymentMethod || 'Cash',
+          upiScreenshot: upiScreenshot || null,
+          invoiceId: invoiceUpdated._id
+        });
+        await studentDoc.save();
+      }
+    }
 
-    const ledger = await FeeLedger.findOne({ studentId });
-    if (ledger) {
+    // 3. Recalculate Student FeeLedger
+    const paidInvoices = await Invoice.find({ studentId: queryIdFilter, status: 'Paid' });
+    const totalPaidInvoices = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+
+    const manualPaymentsSum = (studentDoc?.payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalPaid = Math.max(totalPaidInvoices, manualPaymentsSum);
+
+    let ledger = await FeeLedger.findOne({ studentId: queryIdFilter });
+    if (!ledger) {
+      ledger = await FeeLedger.create({
+        studentId: studentIdObj || studentIdStr,
+        totalPackageAmount: 45000,
+        amountPaid: totalPaid,
+        balanceDue: Math.max(0, 45000 - totalPaid),
+        paymentStatus: (45000 - totalPaid) === 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid'
+      });
+    } else {
       ledger.amountPaid = totalPaid;
       ledger.balanceDue = Math.max(0, ledger.totalPackageAmount - totalPaid);
-      ledger.paymentStatus = ledger.balanceDue === 0 ? 'Fully Paid' : ledger.amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
+      ledger.paymentStatus = ledger.balanceDue === 0 && ledger.totalPackageAmount > 0 ? 'Fully Paid' : ledger.amountPaid > 0 ? 'Partially Paid' : 'Unpaid';
       await ledger.save();
     }
+
+    const updatedInvoices = await Invoice.find({ studentId: queryIdFilter });
 
     res.status(200).json({
       message: 'Fee payment recorded successfully in MongoDB Atlas',
       invoice: invoiceUpdated,
-      ledger
+      student: studentDoc,
+      ledger,
+      invoices: updatedInvoices
     });
   } catch (error) {
+    console.error("[Record Fee Payment Error]:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -123,8 +179,7 @@ export const recordFeePayment = async (req, res) => {
 export const createInvoice = async (req, res) => {
   const { studentId, amount, dueDate, particulars } = req.body;
   try {
-    const count = await Invoice.countDocuments();
-    const invoiceNumber = `INV-2026-${String(count + 1).padStart(5, '0')}`;
+    const invoiceNumber = await generateUniqueInvoiceNumber();
 
     const invoice = await Invoice.create({
       invoiceNumber,
