@@ -21,12 +21,14 @@ const generateRollNumber = async () => {
 export const registerStudent = async (req, res) => {
   const { name, email, batchId, courseName, totalPackageAmount, installments, admissionDate } = req.body;
 
-  try {
-    if (email && email.trim() !== '') {
-      const studentExists = await Student.findOne({ email: email.trim() });
+    let studentEmail = undefined;
+    if (email && typeof email === 'string' && email.trim() !== '') {
+      const cleanEmail = email.trim();
+      const studentExists = await Student.findOne({ email: cleanEmail });
       if (studentExists) {
         return res.status(400).json({ message: 'Student with this email already exists' });
       }
+      studentEmail = cleanEmail;
     }
 
     const rollNumber = await generateRollNumber();
@@ -35,7 +37,7 @@ export const registerStudent = async (req, res) => {
     const student = await Student.create({
       rollNumber: req.body.customId || rollNumber,
       name,
-      email: email ? email.trim() : '',
+      email: studentEmail,
       batchId: batchId ? batchId.trim() : '',
       courseName,
       status: 'Active',

@@ -12,7 +12,8 @@ const studentSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    default: ''
+    sparse: true,
+    default: undefined
   },
   batchId: {
     type: String,

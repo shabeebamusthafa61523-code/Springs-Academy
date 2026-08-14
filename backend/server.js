@@ -198,9 +198,19 @@ const seedDatabase = async () => {
 
 const PORT = process.env.PORT || 5000;
 
+const cleanupIndexes = async () => {
+  try {
+    await Student.collection.dropIndex('email_1');
+    console.log('Successfully dropped stale email_1 unique index from MongoDB Atlas.');
+  } catch (err) {
+    // Index did not exist or was already dropped
+  }
+};
+
 const startServer = async () => {
   try {
     await connectDB();
+    await cleanupIndexes();
     await seedDatabase();
   } catch (err) {
     console.log('Failed to connect to MongoDB, starting Express anyway. Server will work on mock data operations or retry connections.');
