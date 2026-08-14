@@ -21,6 +21,7 @@ const generateRollNumber = async () => {
 export const registerStudent = async (req, res) => {
   const { name, email, batchId, courseName, totalPackageAmount, installments, admissionDate } = req.body;
 
+  try {
     let studentEmail = undefined;
     if (email && typeof email === 'string' && email.trim() !== '') {
       const cleanEmail = email.trim();

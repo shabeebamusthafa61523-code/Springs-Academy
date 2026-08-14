@@ -21,6 +21,7 @@ import {
   CheckCircle2, 
   XCircle, 
   AlertCircle,
+  AlertTriangle,
   Building,
   BookOpen,
   Activity,
@@ -196,8 +197,23 @@ export default function App() {
   const [editingExpenseObj, setEditingExpenseObj] = useState(null);
   const [expenseEditForm, setExpenseEditForm] = useState({ title: '', amount: '', date: '', status: 'Pending', description: '' });
 
-  const [isExpenseDeleteModalOpen, setIsExpenseDeleteModalOpen] = useState(false);
-  const [deletingExpenseObj, setDeletingExpenseObj] = useState(null);
+  const [deleteConfirmModalState, setDeleteConfirmModalState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Delete Record',
+    onConfirm: null
+  });
+
+  const requestDeleteConfirmation = ({ title, message, confirmText = 'Delete Record', onConfirm }) => {
+    setDeleteConfirmModalState({
+      isOpen: true,
+      title,
+      message,
+      confirmText,
+      onConfirm
+    });
+  };
 
   // Input states
   const [studentForm, setStudentForm] = useState({ 
@@ -339,18 +355,7 @@ export default function App() {
     toast.success("Expense claim updated successfully!");
   };
 
-  const handleOpenDeleteExpenseModal = (exp) => {
-    setDeletingExpenseObj(exp);
-    setIsExpenseDeleteModalOpen(true);
-  };
 
-  const handleConfirmDeleteExpense = () => {
-    if (!deletingExpenseObj) return;
-    deleteExpenseClaim(deletingExpenseObj._id);
-    setIsExpenseDeleteModalOpen(false);
-    setDeletingExpenseObj(null);
-    toast.success("Expense claim deleted successfully!");
-  };
 
   const clearExpenseFilters = () => {
     setExpenseSearch('');
@@ -576,35 +581,22 @@ export default function App() {
     toast.success("Payment details corrected & ledger updated!");
   };
 
-  const [deletePaymentConfirmModal, setDeletePaymentConfirmModal] = useState({
-    isOpen: false,
-    student: null,
-    payment: null
-  });
-
   const handleDeletePayment = (student, payment) => {
     if (!student || !payment) return;
-    setDeletePaymentConfirmModal({
-      isOpen: true,
-      student,
-      payment
+    requestDeleteConfirmation({
+      title: "Delete Payment Log & Revert Balance",
+      message: `Are you sure you want to delete payment receipt ${payment.receiptNumber || ''} of ₹${payment.amount.toLocaleString()} for student ${student.name}? The remaining balance due will automatically revert.`,
+      confirmText: "Delete Log & Revert",
+      onConfirm: async () => {
+        toast.loading("Deleting payment log...", { id: "delete-toast" });
+        const res = await deletePayment(student._id, payment._id);
+        if (res && res.error) {
+          toast.error(res.error, { id: "delete-toast" });
+        } else {
+          toast.success("Payment log deleted & balance recalculated!", { id: "delete-toast" });
+        }
+      }
     });
-  };
-
-  const confirmDeletePayment = async () => {
-    const { student, payment } = deletePaymentConfirmModal;
-    if (!student || !payment) return;
-
-    setDeletePaymentConfirmModal({ isOpen: false, student: null, payment: null });
-    toast.loading("Deleting payment log...", { id: "delete-toast" });
-
-    const res = await deletePayment(student._id, payment._id);
-
-    if (res && res.error) {
-      toast.error(res.error, { id: "delete-toast" });
-    } else {
-      toast.success("Payment log deleted & balance recalculated!", { id: "delete-toast" });
-    }
   };
 
   const generateStudentDirectoryPDF = async () => {
@@ -1550,21 +1542,23 @@ export default function App() {
                 {!isSidebarCollapsed && <span>All Student Invoices</span>}
               </button>
 
-              <button
-                onClick={(e) => {
-                  if (!isSidebarCollapsed) e.stopPropagation();
-                  setActiveTab('fee-collection');
-                }}
-                className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                  activeTab === 'fee-collection'
-                    ? 'bg-blue-600/10 text-blue-300 border border-blue-500/20'
-                    : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
-                }`}
-                title="Fee Collection"
-              >
-                <DollarSign className="w-5 h-5 flex-shrink-0" />
-                {!isSidebarCollapsed && <span>Fee Collection</span>}
-              </button>
+              {currentUser.role === 'Super Admin' && (
+                <button
+                  onClick={(e) => {
+                    if (!isSidebarCollapsed) e.stopPropagation();
+                    setActiveTab('fee-collection');
+                  }}
+                  className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                    activeTab === 'fee-collection'
+                      ? 'bg-blue-600/10 text-blue-300 border border-blue-500/20'
+                      : 'text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
+                  }`}
+                  title="Fee Collection"
+                >
+                  <DollarSign className="w-5 h-5 flex-shrink-0" />
+                  {!isSidebarCollapsed && <span>Fee Collection</span>}
+                </button>
+              )}
 
               {currentUser.role === 'Super Admin' && (
                 <button
@@ -2320,10 +2314,15 @@ export default function App() {
                                       </button>
                                       <button 
                                         onClick={() => {
-                                          if (window.confirm(`Are you sure you want to completely delete ${student.name}?`)) {
-                                            deleteStudent(student._id);
-                                            toast.success("Student deleted successfully.");
-                                          }
+                                          requestDeleteConfirmation({
+                                            title: "Delete Student Profile",
+                                            message: `Are you sure you want to permanently delete student "${student.name}" (${student.rollNumber})? All fee ledgers and enrollment records will be removed.`,
+                                            confirmText: "Delete Student",
+                                            onConfirm: async () => {
+                                              await deleteStudent(student._id);
+                                              toast.success(`Student ${student.name} deleted successfully.`);
+                                            }
+                                          });
                                         }}
                                         className="bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 rounded px-2.5 py-1 transition-all text-[10px] cursor-pointer"
                                       >
@@ -2945,7 +2944,15 @@ export default function App() {
 
 
           {/* TAB: FEE COLLECTION */}
-          {activeTab === 'fee-collection' && (() => {
+          {activeTab === 'fee-collection' && currentUser.role !== 'Super Admin' && (
+            <div className="bg-amber-500/10 p-8 rounded-2xl border border-amber-500/20 text-center max-w-xl mx-auto my-12">
+              <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-3 text-xl">🔒</div>
+              <h3 className="text-lg font-bold text-amber-400">Access Restricted</h3>
+              <p className="text-sm text-slate-400 mt-1">The Fee Collection Terminal is strictly restricted to Super Admin accounts.</p>
+            </div>
+          )}
+
+          {activeTab === 'fee-collection' && currentUser.role === 'Super Admin' && (() => {
             const getLatestDate = (student) => {
               const dates = (student.payments || []).map(p => p.date).filter(Boolean);
               if (dates.length > 0) return dates.sort().reverse()[0];
@@ -3412,10 +3419,15 @@ export default function App() {
                                 </button>
                                 <button
                                   onClick={() => {
-                                    if (window.confirm(`Are you sure you want to delete ${emp.name}?`)) {
-                                      deleteEmployee(emp._id);
-                                      toast.success("Employee removed successfully.");
-                                    }
+                                    requestDeleteConfirmation({
+                                      title: "Delete Staff Member",
+                                      message: `Are you sure you want to remove staff member "${emp.name}"? This record will be permanently purged.`,
+                                      confirmText: "Delete Employee",
+                                      onConfirm: async () => {
+                                        await deleteEmployee(emp._id);
+                                        toast.success(`Employee ${emp.name} removed successfully.`);
+                                      }
+                                    });
                                   }}
                                   className="bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 rounded px-2.5 py-1.5 transition-all text-[10px] cursor-pointer"
                                 >
@@ -3656,7 +3668,17 @@ export default function App() {
 
                                   {/* Delete Button */}
                                   <button 
-                                    onClick={() => handleOpenDeleteExpenseModal(exp)}
+                                    onClick={() => {
+                                      requestDeleteConfirmation({
+                                        title: "Delete Expense Claim",
+                                        message: `Are you sure you want to delete expense claim "${exp.title}" (₹${exp.amount.toLocaleString()})?`,
+                                        confirmText: "Delete Expense",
+                                        onConfirm: async () => {
+                                          await deleteExpenseClaim(exp._id);
+                                          toast.success("Expense claim deleted successfully!");
+                                        }
+                                      });
+                                    }}
                                     className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-all flex items-center gap-1 px-2 py-1 text-[11px]"
                                     title="Delete Expense Claim"
                                   >
@@ -3777,10 +3799,15 @@ export default function App() {
                             </button>
                             <button
                               onClick={() => {
-                                if (window.confirm(`Delete "${course.name}"? This cannot be undone.`)) {
-                                  deleteCourse(course._id);
-                                  toast.success("Course removed.");
-                                }
+                                requestDeleteConfirmation({
+                                  title: "Delete Course Entry",
+                                  message: `Are you sure you want to delete course "${course.name}"? This action cannot be undone.`,
+                                  confirmText: "Delete Course",
+                                  onConfirm: async () => {
+                                    await deleteCourse(course._id);
+                                    toast.success("Course removed.");
+                                  }
+                                });
                               }}
                               className="flex-1 bg-rose-500/5 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-xs font-semibold py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                             >
@@ -4126,7 +4153,15 @@ export default function App() {
                       Edit
                     </button>
                     <button onClick={() => {
-                      if (window.confirm(`Delete ${course.name}?`)) deleteCourse(course._id);
+                      requestDeleteConfirmation({
+                        title: "Delete Course Entry",
+                        message: `Are you sure you want to delete course "${course.name}"?`,
+                        confirmText: "Delete Course",
+                        onConfirm: async () => {
+                          await deleteCourse(course._id);
+                          toast.success("Course removed.");
+                        }
+                      });
                     }} className="text-slate-400 hover:text-rose-400 transition-colors text-xs cursor-pointer">
                       Delete
                     </button>
@@ -4356,10 +4391,16 @@ export default function App() {
                 Edit Details
               </button>
               <button onClick={() => {
-                if(window.confirm(`Are you sure you want to completely delete ${viewingStudent.name}?`)) {
-                  deleteStudent(viewingStudent._id);
-                  setIsStudentProfileModalOpen(false);
-                }
+                requestDeleteConfirmation({
+                  title: "Delete Student Profile",
+                  message: `Are you sure you want to permanently delete student "${viewingStudent.name}" (${viewingStudent.rollNumber})?`,
+                  confirmText: "Delete Student",
+                  onConfirm: async () => {
+                    await deleteStudent(viewingStudent._id);
+                    setIsStudentProfileModalOpen(false);
+                    toast.success(`Student ${viewingStudent.name} deleted.`);
+                  }
+                });
               }} className="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex-1 cursor-pointer">
                 Delete
               </button>
@@ -5275,56 +5316,6 @@ export default function App() {
         </form>
       </Modal>
 
-      {/* 5c. Delete Expense Claim Confirmation Modal */}
-      <Modal 
-        isOpen={isExpenseDeleteModalOpen} 
-        onClose={() => {
-          setIsExpenseDeleteModalOpen(false);
-          setDeletingExpenseObj(null);
-        }} 
-        title="Confirm Expense Deletion"
-      >
-        <div className="space-y-4 text-sm">
-          <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-300 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-rose-200">Are you sure you want to delete this expense claim?</p>
-              <p className="text-xs text-rose-300/80 mt-1">This action is permanent and will remove the center expense log from accounting registers.</p>
-            </div>
-          </div>
-
-          {deletingExpenseObj && (
-            <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-1 text-xs text-slate-300 font-mono">
-              <p><span className="text-slate-500">Title:</span> <span className="text-white font-semibold">{deletingExpenseObj.title}</span></p>
-              <p><span className="text-slate-500">Amount:</span> <span className="text-white font-semibold">₹{deletingExpenseObj.amount?.toLocaleString()}</span></p>
-              <p><span className="text-slate-500">Date:</span> {deletingExpenseObj.date}</p>
-              <p><span className="text-slate-500">Status:</span> {deletingExpenseObj.status}</p>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button 
-              type="button" 
-              onClick={() => {
-                setIsExpenseDeleteModalOpen(false);
-                setDeletingExpenseObj(null);
-              }}
-              className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-all"
-            >
-              Cancel
-            </button>
-            <button 
-              type="button" 
-              onClick={handleConfirmDeleteExpense}
-              className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-5 py-2.5 font-semibold transition-all shadow-md hover:shadow-rose-500/20 flex items-center gap-1.5"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete Expense
-            </button>
-          </div>
-        </div>
-      </Modal>
-
       {/* 6. Log Payment Modal */}
       <Modal 
         isOpen={isPaymentModalOpen} 
@@ -5733,54 +5724,38 @@ export default function App() {
         </form>
       </Modal>
 
-      {/* Delete Payment Confirmation Modal */}
+      {/* Universal Delete Confirmation Modal */}
       <Modal
-        isOpen={deletePaymentConfirmModal.isOpen}
-        onClose={() => setDeletePaymentConfirmModal({ isOpen: false, student: null, payment: null })}
-        title="Confirm Delete Payment"
+        isOpen={deleteConfirmModalState.isOpen}
+        onClose={() => setDeleteConfirmModalState(prev => ({ ...prev, isOpen: false }))}
+        title={deleteConfirmModalState.title || "Confirm Deletion"}
       >
-        <div className="space-y-4 text-slate-300">
-          <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
-            <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center text-rose-400 shrink-0">
-              <AlertCircle className="w-6 h-6" />
-            </div>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400">
+            <AlertTriangle className="w-6 h-6 flex-shrink-0 text-rose-400" />
             <div>
-              <h4 className="text-white font-bold text-sm">Are you sure you want to delete this payment?</h4>
-              <p className="text-xs text-rose-300/80 mt-0.5">This action will update the student's remaining balance due immediately without needing a page refresh.</p>
+              <h4 className="text-sm font-bold text-rose-400">Warning: Permanent Action</h4>
+              <p className="text-xs text-rose-300/80 mt-0.5">{deleteConfirmModalState.message}</p>
             </div>
           </div>
 
-          {deletePaymentConfirmModal.student && deletePaymentConfirmModal.payment && (
-            <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Student Name:</span>
-                <span className="text-white font-bold">{deletePaymentConfirmModal.student.name} ({deletePaymentConfirmModal.student.rollNumber})</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Payment Amount:</span>
-                <span className="text-emerald-400 font-extrabold text-sm">₹{(deletePaymentConfirmModal.payment.amount || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Payment Date & Method:</span>
-                <span className="text-slate-200 font-mono">{deletePaymentConfirmModal.payment.date} ({deletePaymentConfirmModal.payment.paymentMethod || 'Cash'})</span>
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
+          <div className="flex items-center justify-end gap-3 pt-2">
             <button
-              type="button"
-              onClick={() => setDeletePaymentConfirmModal({ isOpen: false, student: null, payment: null })}
-              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl py-3 font-semibold text-xs transition-all cursor-pointer border border-slate-700"
+              onClick={() => setDeleteConfirmModalState(prev => ({ ...prev, isOpen: false }))}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-xl transition-colors cursor-pointer"
             >
-              No, Cancel
+              Cancel
             </button>
             <button
-              type="button"
-              onClick={confirmDeletePayment}
-              className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl py-3 font-semibold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-rose-950/30"
+              onClick={() => {
+                if (deleteConfirmModalState.onConfirm) {
+                  deleteConfirmModalState.onConfirm();
+                }
+                setDeleteConfirmModalState(prev => ({ ...prev, isOpen: false }));
+              }}
+              className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-600/30 transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <Trash2 className="w-4 h-4" /> Yes, Delete Payment
+              <Trash2 className="w-4 h-4" /> {deleteConfirmModalState.confirmText || 'Delete Record'}
             </button>
           </div>
         </div>

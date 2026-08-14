@@ -19,6 +19,14 @@ import FeeLedger from './models/FeeLedger.js';
 import Invoice from './models/Invoice.js';
 import Expense from './models/Expense.js';
 
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 
 const app = express();
@@ -196,7 +204,7 @@ const seedDatabase = async () => {
   }
 };
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 const cleanupIndexes = async () => {
   try {

@@ -94,16 +94,10 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     const fetchAtlasData = async () => {
       try {
-        const headers = currentUser?.token ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
-
-        // Execute all MongoDB Atlas fetches concurrently in parallel for 10x faster load time!
-        const [courseRes, incomeRes, invoiceRes, studentRes, empRes, expRes] = await Promise.all([
+        // Fetch public endpoints (courses, extra-incomes)
+        const [courseRes, incomeRes] = await Promise.all([
           fetch(`${API_URL}/api/courses`).catch(() => null),
-          fetch(`${API_URL}/api/extra-incomes`).catch(() => null),
-          fetch(`${API_URL}/api/invoices`, { headers }).catch(() => null),
-          fetch(`${API_URL}/api/students`, { headers }).catch(() => null),
-          fetch(`${API_URL}/api/admin/employees`, { headers }).catch(() => null),
-          fetch(`${API_URL}/api/admin/expenses`, { headers }).catch(() => null)
+          fetch(`${API_URL}/api/extra-incomes`).catch(() => null)
         ]);
 
         if (courseRes && courseRes.ok) {
@@ -121,6 +115,19 @@ export const AppProvider = ({ children }) => {
             localStorage.setItem('agy_cached_incomes', JSON.stringify(incomeData));
           }
         }
+
+        // Only fetch protected data if user is logged in with a valid token
+        if (!currentUser?.token) return;
+
+        const headers = { 'Authorization': `Bearer ${currentUser.token}` };
+
+        // Execute protected MongoDB Atlas fetches concurrently in parallel
+        const [invoiceRes, studentRes, empRes, expRes] = await Promise.all([
+          fetch(`${API_URL}/api/invoices`, { headers }).catch(() => null),
+          fetch(`${API_URL}/api/students`, { headers }).catch(() => null),
+          fetch(`${API_URL}/api/admin/employees`, { headers }).catch(() => null),
+          fetch(`${API_URL}/api/admin/expenses`, { headers }).catch(() => null)
+        ]);
 
         let atlasInvoices = [];
         if (invoiceRes && invoiceRes.ok) {
@@ -151,7 +158,7 @@ export const AppProvider = ({ children }) => {
                 .filter(p => !p.invoiceId || !paidInvoiceIds.has(String(p.invoiceId)))
                 .reduce((sum, p) => sum + (p.amount || 0), 0);
 
-              const totalPaid = calculatedPaid;
+              const totalPaid = paidInvoicesSum + standalonePaymentsSum;
               const totalPkg = s.ledger?.totalPackageAmount ?? 45000;
               const balanceDue = Math.max(0, totalPkg - totalPaid);
               const paymentStatus = balanceDue === 0 && totalPkg > 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
