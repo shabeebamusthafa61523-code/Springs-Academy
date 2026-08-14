@@ -669,64 +669,8 @@ export const AppProvider = ({ children }) => {
 
       if (res.ok) {
         const data = await res.json();
-
-        // Re-fetch fresh data from Atlas so fee collection auto-refreshes
-        try {
-          const authHeaders = currentUser?.token ? { 'Authorization': `Bearer ${currentUser.token}` } : {};
-
-          const [invoiceRes, studentRes] = await Promise.all([
-            fetch(`${API_URL}/api/invoices`, { headers: authHeaders }).catch(() => null),
-            fetch(`${API_URL}/api/students`, { headers: authHeaders }).catch(() => null)
-          ]);
-
-          let atlasInvoices = [];
-          if (invoiceRes && invoiceRes.ok) {
-            const invData = await invoiceRes.json();
-            if (Array.isArray(invData)) atlasInvoices = invData;
-          }
-
-          if (studentRes && studentRes.ok) {
-            const studentData = await studentRes.json();
-            if (Array.isArray(studentData)) {
-              const formatted = studentData.map(s => {
-                const studentAtlasInvoices = atlasInvoices.filter(inv => {
-                  const invStudentId = typeof inv.studentId === 'object' ? inv.studentId?._id : inv.studentId;
-                  return String(invStudentId) === String(s._id);
-                });
-
-                const allStudentInvoices = [...(s.invoices || []), ...studentAtlasInvoices];
-                const uniqueInvoices = Array.from(
-                  new Map(allStudentInvoices.map(i => [String(i._id), i])).values()
-                );
-
-                const paidInvoicesSum = uniqueInvoices
-                  .filter(inv => inv.status === 'Paid')
-                  .reduce((sum, inv) => sum + inv.amount, 0);
-
-                const paymentsSum = (s.payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-                const totalPaid = Math.max(s.ledger?.amountPaid ?? 0, paidInvoicesSum + paymentsSum);
-                const totalPkg = s.ledger?.totalPackageAmount ?? 45000;
-                const balanceDue = Math.max(0, totalPkg - totalPaid);
-                const paymentStatus = balanceDue === 0 && totalPkg > 0 ? 'Fully Paid' : totalPaid > 0 ? 'Partially Paid' : 'Unpaid';
-
-                return {
-                  ...s,
-                  invoices: uniqueInvoices,
-                  ledger: {
-                    totalPackageAmount: totalPkg,
-                    amountPaid: totalPaid,
-                    balanceDue,
-                    paymentStatus
-                  }
-                };
-              });
-              setStudents(formatted);
-            }
-          }
-        } catch (refreshErr) {
-          console.warn("Auto-refresh after delete warning:", refreshErr);
-        }
-
+        // Immediately re-fetch fresh data from Atlas so fee collection & ledgers auto-refresh
+        await fetchAtlasData();
         return data;
       }
     } catch (err) {
