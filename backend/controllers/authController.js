@@ -8,7 +8,7 @@ const generateToken = (id) => {
 };
 
 export const registerUser = async (req, res) => {
-  const { name, username, email, password, role, department, designation, salary } = req.body;
+  const { name, username, email, password, role, department, designation, salary, phoneNumber } = req.body;
   try {
     const rawUsername = (username || name || 'user').trim();
     const userEmail = (email || `${rawUsername.toLowerCase().replace(/\s+/g, '')}@academy.com`).trim().toLowerCase();
@@ -35,6 +35,7 @@ export const registerUser = async (req, res) => {
       name: userName,
       username: rawUsername,
       email: userEmail,
+      phoneNumber: phoneNumber ? phoneNumber.trim() : '',
       password: password || 'password123',
       role: role || 'Super Admin',
       department: department || (role === 'Super Admin' ? 'Executive' : 'Finance & HR'),
@@ -49,6 +50,7 @@ export const registerUser = async (req, res) => {
       name: user.name,
       username: user.username,
       email: user.email,
+      phoneNumber: user.phoneNumber,
       role: user.role,
       token: generateToken(user._id)
     });
@@ -74,6 +76,7 @@ export const registerUser = async (req, res) => {
             name: existingUser.name,
             username: existingUser.username || existingUser.name,
             email: existingUser.email,
+            phoneNumber: existingUser.phoneNumber,
             role: existingUser.role,
             token: generateToken(existingUser._id)
           });
@@ -107,6 +110,7 @@ export const loginUser = async (req, res) => {
         name: user.name,
         username: user.username || user.name,
         email: user.email,
+        phoneNumber: user.phoneNumber,
         role: user.role,
         department: user.department,
         designation: user.designation,
@@ -121,6 +125,45 @@ export const loginUser = async (req, res) => {
   }
 };
 
+export const resetPasswordByPhone = async (req, res) => {
+  const { phoneNumber, newPassword } = req.body;
+  try {
+    if (!phoneNumber || !phoneNumber.trim()) {
+      return res.status(400).json({ message: 'Phone number is required.' });
+    }
+    if (!newPassword || newPassword.trim().length < 4) {
+      return res.status(400).json({ message: 'New password must be at least 4 characters long.' });
+    }
+
+    const cleanInputPhone = phoneNumber.trim().replace(/\D/g, '');
+    const rawInputPhone = phoneNumber.trim();
+
+    const users = await User.find({});
+    const user = users.find(u => {
+      if (!u.phoneNumber) return false;
+      const cleanUserPhone = u.phoneNumber.replace(/\D/g, '');
+      return (cleanInputPhone.length > 0 && cleanUserPhone.includes(cleanInputPhone)) || u.phoneNumber.trim() === rawInputPhone;
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'No registered user account found with this phone number.' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    console.log(`✓ MongoDB Atlas: Successfully reset password for user [${user.username || user.name}] via phone!`);
+
+    return res.status(200).json({
+      message: 'Password reset successfully!',
+      username: user.username || user.name || user.email
+    });
+  } catch (error) {
+    console.error("Reset password by phone error:", error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 export const getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -129,6 +172,7 @@ export const getUserProfile = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        phoneNumber: user.phoneNumber,
         role: user.role,
         department: user.department,
         designation: user.designation,

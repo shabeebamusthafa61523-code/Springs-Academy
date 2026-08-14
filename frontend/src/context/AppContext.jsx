@@ -320,6 +320,24 @@ export const AppProvider = ({ children }) => {
     return newUser;
   };
 
+  const resetPasswordByPhone = async (phoneNumber, newPassword) => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/reset-password-phone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber, newPassword })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data) {
+        return data;
+      } else {
+        return { error: data.message || 'Failed to reset password. Please check your phone number.' };
+      }
+    } catch (err) {
+      return { error: 'Network connection error while resetting password.' };
+    }
+  };
+
   const logout = () => {
     setCurrentUser(null);
   };
@@ -1070,6 +1088,7 @@ export const AppProvider = ({ children }) => {
       currentUser,
       login,
       register,
+      resetPasswordByPhone,
       logout,
       students,
       addStudent,

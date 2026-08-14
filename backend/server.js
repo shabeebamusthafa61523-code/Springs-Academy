@@ -59,6 +59,7 @@ const seedDatabase = async () => {
       const superAdmin = await User.create({
         name: 'Director Jane',
         email: 'owner@academy.com',
+        phoneNumber: '9995982324',
         password: 'password123',
         role: 'Super Admin',
         department: 'Executive',
@@ -69,6 +70,7 @@ const seedDatabase = async () => {
       const admin = await User.create({
         name: 'Coordinator Alex',
         email: 'finance@academy.com',
+        phoneNumber: '9876543210',
         password: 'password123',
         role: 'Admin',
         department: 'Finance & HR',
@@ -79,6 +81,7 @@ const seedDatabase = async () => {
       employee = await User.create({
         name: 'Instructor Bob',
         email: 'faculty@academy.com',
+        phoneNumber: '9123456789',
         password: 'password123',
         role: 'Employee',
         department: 'Academic',
