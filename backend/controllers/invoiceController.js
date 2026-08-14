@@ -254,19 +254,31 @@ export const deletePaymentLog = async (req, res) => {
       }
     }
 
-    // 2. Check if paymentId exists inside any Student.payments array
+    // 2. Find student and remove matching payment from student.payments array
     if (!studentIdToReconcile) {
-      const studentWithPay = await Student.findOne({ 'payments._id': paymentId });
+      const studentWithPay = await Student.findOne({
+        $or: [
+          { 'payments._id': paymentId },
+          { 'payments.invoiceId': paymentId }
+        ]
+      });
       if (studentWithPay) {
         studentIdToReconcile = String(studentWithPay._id);
       }
     }
 
     if (studentIdToReconcile) {
-      const student = await Student.findById(studentIdToReconcile);
+      const studentIdStr = String(studentIdToReconcile);
+      const studentIdObj = mongoose.Types.ObjectId.isValid(studentIdStr) ? new mongoose.Types.ObjectId(studentIdStr) : null;
+      const queryIdFilter = studentIdObj ? { $in: [studentIdStr, studentIdObj] } : studentIdStr;
+
+      const student = await Student.findById(studentIdObj || studentIdStr);
       if (student && student.payments) {
         const initialCount = student.payments.length;
-        student.payments = student.payments.filter(p => String(p._id) !== String(paymentId));
+        student.payments = student.payments.filter(p => 
+          String(p._id) !== String(paymentId) &&
+          (!p.invoiceId || String(p.invoiceId) !== String(paymentId))
+        );
         if (student.payments.length !== initialCount) {
           await student.save();
           console.log(`[Delete Payment Log] Removed payment ${paymentId} from student.payments array in Atlas`);
@@ -274,14 +286,15 @@ export const deletePaymentLog = async (req, res) => {
       }
 
       // 3. Recalculate Student Fees Ledger in Atlas
-      const paidInvoices = await Invoice.find({ studentId: studentIdToReconcile, status: 'Paid' });
-      const totalPaidInvoices = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+      const paidInvoices = await Invoice.find({ studentId: queryIdFilter, status: 'Paid' });
+      const paidInvoiceIds = new Set(paidInvoices.map(i => String(i._id)));
+      const totalPaidInvoices = paidInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
-      const studentObj = await Student.findById(studentIdToReconcile);
-      const manualPaymentsSum = (studentObj?.payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-      const totalPaid = totalPaidInvoices + manualPaymentsSum;
+      const standalonePayments = (student?.payments || []).filter(p => !p.invoiceId || !paidInvoiceIds.has(String(p.invoiceId)));
+      const standalonePaymentsSum = standalonePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const totalPaid = totalPaidInvoices + standalonePaymentsSum;
 
-      const ledger = await FeeLedger.findOne({ studentId: studentIdToReconcile });
+      let ledger = await FeeLedger.findOne({ studentId: queryIdFilter });
       if (ledger) {
         ledger.amountPaid = totalPaid;
         ledger.balanceDue = Math.max(0, ledger.totalPackageAmount - totalPaid);
@@ -290,11 +303,11 @@ export const deletePaymentLog = async (req, res) => {
         console.log(`[Delete Payment Log] Reconciled FeeLedger in Atlas: amountPaid=${totalPaid}, balanceDue=${ledger.balanceDue}`);
       }
 
-      const updatedStudent = await Student.findById(studentIdToReconcile);
-      const updatedInvoices = await Invoice.find({ studentId: studentIdToReconcile });
+      const updatedStudent = await Student.findById(studentIdObj || studentIdStr);
+      const updatedInvoices = await Invoice.find({ studentId: queryIdFilter });
 
       return res.status(200).json({
-        message: 'Payment log deleted and ledger reconciled successfully in MongoDB Atlas',
+        message: 'Payment log deleted and remaining amount reverted successfully in MongoDB Atlas',
         student: updatedStudent,
         ledger,
         invoices: updatedInvoices
