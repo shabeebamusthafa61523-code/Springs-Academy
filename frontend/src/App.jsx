@@ -1298,56 +1298,34 @@ export default function App() {
     doc.setTextColor(...primaryBlue);
     doc.text(`INR ${(payment.amount || 0).toLocaleString()}`, 190, 124, { align: "right" });
 
-    // Overall Student Ledger Summary Panel
-    const totalPkg = student.ledger?.totalPackageAmount || 45000;
-    const totalPaid = student.ledger?.amountPaid || 0;
-    const balDue = student.ledger?.balanceDue ?? Math.max(0, totalPkg - totalPaid);
-
-    doc.setFillColor(...bgLight);
-    doc.setDrawColor(...borderColor);
-    doc.roundedRect(15, 133, 180, 22, 2, 2, 'FD');
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...primaryDark);
-    doc.text("ACCOUNT LEDGER SUMMARY", 19, 139);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(...textMuted);
-    doc.text(`Package Total: INR ${totalPkg.toLocaleString()}    |    Amount Paid (Sum of Logs): INR ${totalPaid.toLocaleString()}`, 19, 147);
-
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(balDue === 0 ? 21 : 225, balDue === 0 ? 128 : 29, balDue === 0 ? 61 : 72);
-    doc.text(`Remaining Balance Due: INR ${balDue.toLocaleString()}`, 190, 147, { align: "right" });
-
     // Terms & Conditions + Authorized Signatory
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(...textMuted);
-    doc.text("TERMS & CONDITIONS", 15, 164);
+    doc.text("TERMS & CONDITIONS", 15, 140);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text("1. Fees once paid are non-refundable and non-transferable under any circumstances.", 15, 169);
-    doc.text("2. Please preserve this computer-generated receipt for institutional audit and hall ticket issuance.", 15, 173.5);
-    doc.text("3. For financial queries or assistance, contact Accounts Wing at info@springsacademy.com", 15, 178);
+    doc.text("1. Fees once paid are non-refundable and non-transferable under any circumstances.", 15, 145);
+    doc.text("2. Please preserve this computer-generated receipt for institutional audit and hall ticket issuance.", 15, 149.5);
+    doc.text("3. A minimum payment of RS 5,000 must be paid on or before the 30th of each month. Late payments will incur a penalty.", 15, 154);
+    doc.text("4. For financial queries or assistance, contact Accounts Wing at info@springsacademy.com", 15, 158.5);
 
     // Signatory Area
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.4);
-    doc.line(140, 181, 195, 181);
+    doc.line(140, 165, 195, 165);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
     doc.setTextColor(...textDark);
-    doc.text("Authorized Signatory", 167.5, 186, { align: "center" });
+    doc.text("Authorized Signatory", 167.5, 170, { align: "center" });
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...textMuted);
-    doc.text("Springs Academy Finance Wing", 167.5, 190, { align: "center" });
+    doc.text("Springs Academy Finance Wing", 167.5, 174, { align: "center" });
 
     // Page Footer
     doc.setDrawColor(...borderColor);
