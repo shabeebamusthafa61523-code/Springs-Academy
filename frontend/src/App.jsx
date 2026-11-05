@@ -888,107 +888,98 @@ export default function App() {
     }
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.setTextColor(148, 163, 184);
     doc.text("Master Invoices & Payment Schedule Report", 15, 27);
     const dateRangeStr = (invoiceScheduleStartDate || invoiceScheduleEndDate) 
       ? `Date Range: ${invoiceScheduleStartDate || 'Start'} to ${invoiceScheduleEndDate || 'Present'}` 
       : `Generated: ${new Date().toLocaleDateString()}`;
+    doc.setFontSize(9.5);
     doc.text(`${dateRangeStr}  |  Total Invoices: ${(invoicesList || []).length}`, 15, 33);
 
-    let startY = 50;
+    let startY = 52;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setTextColor(51, 65, 85);
 
-    doc.text("Invoice #", 15, startY);
-    doc.text("Student Name (Roll)", 50, startY);
-    doc.text("Particulars", 110, startY);
-    doc.text("Amount (INR)", 145, startY);
-    doc.text("Due/Paid Date", 170, startY);
-    doc.text("Status", 195, startY, { align: 'right' });
+    doc.text("SL NO", 15, startY);
+    doc.text("DATE", 28, startY);
+    doc.text("STUDENT NAME", 52, startY);
+    doc.text("COURSE NAME", 98, startY);
+    doc.text("AMOUNT (INR)", 148, startY);
+    doc.text("PAYMODE", 195, startY, { align: 'right' });
 
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.5);
-    doc.line(15, startY + 3, 195, startY + 3);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.6);
+    doc.line(15, startY + 3.5, 195, startY + 3.5);
 
-    let currentY = startY + 9;
+    let currentY = startY + 10;
     let totalAmount = 0;
-    let paidTotal = 0;
-    let pendingTotal = 0;
 
-    (invoicesList || []).forEach((inv) => {
-      if (currentY > 270) {
+    (invoicesList || []).forEach((inv, idx) => {
+      if (currentY > 265) {
         doc.addPage();
-        currentY = 20;
+        currentY = 22;
 
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
+        doc.setFontSize(10);
         doc.setTextColor(51, 65, 85);
-        doc.text("Invoice #", 15, currentY);
-        doc.text("Student Name (Roll)", 50, currentY);
-        doc.text("Particulars", 110, currentY);
-        doc.text("Amount (INR)", 145, currentY);
-        doc.text("Due/Paid Date", 170, currentY);
-        doc.text("Status", 195, currentY, { align: 'right' });
+        doc.text("SL NO", 15, currentY);
+        doc.text("DATE", 28, currentY);
+        doc.text("STUDENT NAME", 52, currentY);
+        doc.text("COURSE NAME", 98, currentY);
+        doc.text("AMOUNT (INR)", 148, currentY);
+        doc.text("PAYMODE", 195, currentY, { align: 'right' });
 
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.5);
-        doc.line(15, currentY + 3, 195, currentY + 3);
-        currentY += 9;
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.6);
+        doc.line(15, currentY + 3.5, 195, currentY + 3.5);
+        currentY += 10;
       }
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
+      doc.setFontSize(9.5);
       doc.setTextColor(30, 41, 59);
 
-      const invNum = inv.invoiceNumber || 'INV-001';
-      const studentInfo = `${inv.studentName || 'Student'} (${inv.studentRoll || 'N/A'})`;
-      const particulars = (inv.particulars || 'Tuition Fee').slice(0, 25);
+      const slNo = String(idx + 1);
+      const dateStr = inv.date || (inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A'));
+      const studentName = inv.studentName || inv.studentObj?.name || 'N/A';
+      const courseName = inv.courseName || inv.studentObj?.courseName || 'N/A';
       const amt = Number(inv.amount || 0);
-      const dateStr = inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A');
-      const status = inv.status || 'Pending';
+      const paymode = inv.paymentMethod || 'Cash';
 
       totalAmount += amt;
-      if (status === 'Paid') paidTotal += amt;
-      else pendingTotal += amt;
 
-      doc.text(invNum, 15, currentY);
-      doc.text(studentInfo.length > 32 ? studentInfo.slice(0, 30) + '..' : studentInfo, 50, currentY);
-      doc.text(particulars, 110, currentY);
-      doc.text(amt.toLocaleString(), 145, currentY);
-      doc.text(dateStr, 170, currentY);
-
-      if (status === 'Paid') {
-        doc.setTextColor(22, 163, 74);
-      } else {
-        doc.setTextColor(217, 119, 6);
-      }
-      doc.text(status, 195, currentY, { align: 'right' });
+      doc.text(slNo, 15, currentY);
+      doc.text(dateStr, 28, currentY);
+      doc.text(studentName.length > 22 ? studentName.slice(0, 20) + '..' : studentName, 52, currentY);
+      doc.text(courseName.length > 23 ? courseName.slice(0, 21) + '..' : courseName, 98, currentY);
+      doc.text(amt.toLocaleString(), 148, currentY);
+      doc.text(paymode, 195, currentY, { align: 'right' });
 
       doc.setDrawColor(241, 245, 249);
-      doc.line(15, currentY + 2.5, 195, currentY + 2.5);
-      currentY += 7.5;
+      doc.setLineWidth(0.4);
+      doc.line(15, currentY + 3, 195, currentY + 3);
+      currentY += 9;
     });
 
-    if (currentY > 250) {
+    if (currentY > 245) {
       doc.addPage();
-      currentY = 20;
+      currentY = 22;
     }
 
-    currentY += 5;
+    currentY += 6;
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(15, currentY, 180, 18, 2, 2, 'FD');
+    doc.roundedRect(15, currentY, 180, 22, 2, 2, 'FD');
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(9.5);
     doc.setTextColor(51, 65, 85);
-    doc.text(`Total Invoices Amount: INR ${totalAmount.toLocaleString()}`, 20, currentY + 7);
+    doc.text(`Total Records: ${(invoicesList || []).length}`, 20, currentY + 8);
+    doc.setFontSize(10.5);
     doc.setTextColor(22, 163, 74);
-    doc.text(`Total Collected (Paid): INR ${paidTotal.toLocaleString()}`, 20, currentY + 13);
-    doc.setTextColor(217, 119, 6);
-    doc.text(`Total Pending (Due): INR ${pendingTotal.toLocaleString()}`, 110, currentY + 13);
+    doc.text(`Total Collected Amount: INR ${totalAmount.toLocaleString()}`, 20, currentY + 16);
 
     doc.save(`Master_Invoices_Schedule_${new Date().toISOString().split('T')[0]}.pdf`);
     toast.success("Master Invoices & Payment Schedule PDF downloaded!");
@@ -2726,6 +2717,7 @@ export default function App() {
                 ...inv,
                 studentName: student.name,
                 studentRoll: student.rollNumber,
+                courseName: student.courseName || 'N/A',
                 studentObj: student
               }));
             });
@@ -2840,12 +2832,12 @@ export default function App() {
                     <table className="w-full text-left text-xs text-slate-300">
                       <thead className="bg-slate-900/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-800">
                         <tr>
-                          <th className="px-4 py-3">Receipt / Invoice #</th>
-                          <th className="px-4 py-3">Student</th>
-                          <th className="px-4 py-3">Particulars & Method</th>
-                          <th className="px-4 py-3">Amount Paid</th>
-                          <th className="px-4 py-3">Paid Date</th>
-                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3">Sl No</th>
+                          <th className="px-4 py-3">Date</th>
+                          <th className="px-4 py-3">Student Name</th>
+                          <th className="px-4 py-3">Course Name</th>
+                          <th className="px-4 py-3">Amount</th>
+                          <th className="px-4 py-3">Paymode</th>
                           <th className="px-4 py-3 text-right">Action</th>
                         </tr>
                       </thead>
@@ -2857,14 +2849,14 @@ export default function App() {
                         ) : (
                           sortedMasterInvoices.map((inv, idx) => (
                             <tr key={inv._id || idx} className="hover:bg-slate-900/50 transition-colors">
-                              <td className="px-4 py-3 font-mono font-semibold text-blue-400">{inv.invoiceNumber || 'INV-REC-001'}</td>
+                              <td className="px-4 py-3 font-mono text-slate-400">{idx + 1}</td>
+                              <td className="px-4 py-3 font-mono text-slate-300">{inv.date || (inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A'))}</td>
                               <td className="px-4 py-3 font-medium text-white">{inv.studentName} <span className="text-[10px] text-slate-500 font-mono">({inv.studentRoll})</span></td>
-                              <td className="px-4 py-3 text-slate-400">{inv.particulars || 'Tuition Fee Payment'} <span className="text-[10px] font-mono text-slate-500">({inv.paymentMethod || 'Cash'})</span></td>
+                              <td className="px-4 py-3 text-slate-300">{inv.courseName || inv.studentObj?.courseName || 'N/A'}</td>
                               <td className="px-4 py-3 font-bold text-emerald-400">₹{(inv.amount || 0).toLocaleString()}</td>
-                              <td className="px-4 py-3 font-mono text-slate-400">{inv.date || (inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A'))}</td>
                               <td className="px-4 py-3">
-                                <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                  Paid
+                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                                  {inv.paymentMethod || 'Cash'}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-right flex items-center justify-end gap-1.5">
