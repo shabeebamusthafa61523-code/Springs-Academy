@@ -46,6 +46,23 @@ import {
   Clock
 } from 'lucide-react';
 
+const formatDateDDMMYYYY = (dateInput) => {
+  if (!dateInput) return 'N/A';
+  if (dateInput instanceof Date) {
+    if (isNaN(dateInput.getTime())) return 'N/A';
+    const day = String(dateInput.getDate()).padStart(2, '0');
+    const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const year = dateInput.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  const str = String(dateInput).split('T')[0];
+  const parts = str.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return str;
+};
+
 export default function App() {
   const { 
     currentUser, 
@@ -892,8 +909,8 @@ export default function App() {
     doc.setTextColor(148, 163, 184);
     doc.text("Master Invoices & Payment Schedule Report", 15, 27);
     const dateRangeStr = (invoiceScheduleStartDate || invoiceScheduleEndDate) 
-      ? `Date Range: ${invoiceScheduleStartDate || 'Start'} to ${invoiceScheduleEndDate || 'Present'}` 
-      : `Generated: ${new Date().toLocaleDateString()}`;
+      ? `Date Range: ${formatDateDDMMYYYY(invoiceScheduleStartDate) || 'Start'} to ${formatDateDDMMYYYY(invoiceScheduleEndDate) || 'Present'}` 
+      : `Generated: ${formatDateDDMMYYYY(new Date())}`;
     doc.setFontSize(9.5);
     doc.text(`${dateRangeStr}  |  Total Invoices: ${(invoicesList || []).length}`, 15, 33);
 
@@ -942,7 +959,8 @@ export default function App() {
       doc.setTextColor(30, 41, 59);
 
       const slNo = String(idx + 1);
-      const dateStr = inv.date || (inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A'));
+      const rawDate = inv.date || (inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || ''));
+      const dateStr = formatDateDDMMYYYY(rawDate);
       const studentName = inv.studentName || inv.studentObj?.name || 'N/A';
       const courseName = inv.courseName || inv.studentObj?.courseName || 'N/A';
       const amt = Number(inv.amount || 0);
@@ -1177,7 +1195,7 @@ export default function App() {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
     doc.setTextColor(...textMuted);
-    doc.text(`DATE: ${payment.date || new Date().toISOString().split('T')[0]}`, 195, 29, { align: "right" });
+    doc.text(`DATE: ${formatDateDDMMYYYY(payment.date || new Date())}`, 195, 29, { align: "right" });
 
     // PAID Badge
     doc.setFillColor(220, 252, 231);
@@ -1266,7 +1284,7 @@ export default function App() {
     doc.setFontSize(8.5);
     doc.setTextColor(...textDark);
     doc.text(payment.paymentMethod || 'Cash', 108, 99);
-    doc.text(payment.date || 'N/A', 145, 99);
+    doc.text(formatDateDDMMYYYY(payment.date), 145, 99);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
@@ -2850,7 +2868,7 @@ export default function App() {
                           sortedMasterInvoices.map((inv, idx) => (
                             <tr key={inv._id || idx} className="hover:bg-slate-900/50 transition-colors">
                               <td className="px-4 py-3 font-mono text-slate-400">{idx + 1}</td>
-                              <td className="px-4 py-3 font-mono text-slate-300">{inv.date || (inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || 'N/A'))}</td>
+                              <td className="px-4 py-3 font-mono text-slate-300">{formatDateDDMMYYYY(inv.date || (inv.paidOn ? String(inv.paidOn).split('T')[0] : (inv.dueDate || '')))}</td>
                               <td className="px-4 py-3 font-medium text-white">{inv.studentName} <span className="text-[10px] text-slate-500 font-mono">({inv.studentRoll})</span></td>
                               <td className="px-4 py-3 text-slate-300">{inv.courseName || inv.studentObj?.courseName || 'N/A'}</td>
                               <td className="px-4 py-3 font-bold text-emerald-400">₹{(inv.amount || 0).toLocaleString()}</td>
