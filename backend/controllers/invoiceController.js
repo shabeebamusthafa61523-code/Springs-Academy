@@ -92,90 +92,64 @@ export const recordFeePayment = async (req, res) => {
     const studentIdObj = mongoose.Types.ObjectId.isValid(studentIdStr) ? new mongoose.Types.ObjectId(studentIdStr) : null;
     const queryIdFilter = studentIdObj ? { $in: [studentIdStr, studentIdObj] } : studentIdStr;
 
-    let pendingInvoices = await Invoice.find({ studentId: queryIdFilter, status: 'Pending' }).sort({ dueDate: 1 });
+    // 1. Create EXACTLY ONE unified Paid Receipt Invoice for the full entered payment amount
+    const invoiceNumber = await generateUniqueInvoiceNumber();
+    const paidInvoice = await Invoice.create({
+      invoiceNumber,
+      studentId: studentIdObj || studentIdStr,
+      amount: numericAmount,
+      dueDate: date || new Date().toISOString().split('T')[0],
+      status: 'Paid',
+      paymentMethod: paymentMethod || 'Cash',
+      paidOn: date ? new Date(date) : new Date(),
+      upiScreenshot: upiScreenshot || null,
+      particulars: `Fee Collection Receipt - ${paymentMethod || 'Cash'}`
+    });
 
-    // 1. Apply exact payment amount entered by user to pending invoices / receipts
-    let remainingPaymentToApply = numericAmount;
-    let invoiceUpdated = null;
+    // 2. Settle / reduce pending scheduled invoices without creating duplicate paid receipts
+    let pendingInvoices = await Invoice.find({ studentId: queryIdFilter, status: 'Pending' }).sort({ dueDate: 1 });
+    let remainingPaymentToDeduct = numericAmount;
 
     if (pendingInvoices && pendingInvoices.length > 0) {
-      for (const oldestInvoice of pendingInvoices) {
-        if (remainingPaymentToApply <= 0) break;
+      for (const pendingInv of pendingInvoices) {
+        if (remainingPaymentToDeduct <= 0) break;
 
-        if (remainingPaymentToApply >= oldestInvoice.amount) {
-          // Full payment for this scheduled pending invoice
-          remainingPaymentToApply -= oldestInvoice.amount;
-          oldestInvoice.status = 'Paid';
-          oldestInvoice.paymentMethod = paymentMethod || 'Cash';
-          oldestInvoice.paidOn = date ? new Date(date) : new Date();
-          if (upiScreenshot) oldestInvoice.upiScreenshot = upiScreenshot;
-          await oldestInvoice.save();
-          if (!invoiceUpdated) invoiceUpdated = oldestInvoice;
+        if (remainingPaymentToDeduct >= pendingInv.amount) {
+          // This pending invoice is fully covered by the payment
+          remainingPaymentToDeduct -= pendingInv.amount;
+          await Invoice.findByIdAndDelete(pendingInv._id);
         } else {
-          // Partial payment for this scheduled pending invoice
-          const paidPartAmount = remainingPaymentToApply;
-          oldestInvoice.amount -= paidPartAmount; // Remaining pending amount on this invoice
-          await oldestInvoice.save();
-
-          // Create a new paid receipt invoice for the exact paid amount
-          const invoiceNumber = await generateUniqueInvoiceNumber();
-          invoiceUpdated = await Invoice.create({
-            invoiceNumber,
-            studentId: studentIdObj || studentIdStr,
-            amount: paidPartAmount,
-            dueDate: date || new Date().toISOString().split('T')[0],
-            status: 'Paid',
-            paymentMethod: paymentMethod || 'Cash',
-            paidOn: date ? new Date(date) : new Date(),
-            upiScreenshot: upiScreenshot || null,
-            particulars: `Fee Collection Receipt - ${paymentMethod || 'Cash'}`
-          });
-          remainingPaymentToApply = 0;
+          // Partial deduction from this pending invoice
+          pendingInv.amount -= remainingPaymentToDeduct;
+          await pendingInv.save();
+          remainingPaymentToDeduct = 0;
           break;
         }
       }
     }
 
-    if (!invoiceUpdated || remainingPaymentToApply > 0) {
-      // Create new paid receipt invoice for the exact paid amount (or overflow amount)
-      const invoiceNumber = await generateUniqueInvoiceNumber();
-      const newPaidInvoice = await Invoice.create({
-        invoiceNumber,
-        studentId: studentIdObj || studentIdStr,
-        amount: remainingPaymentToApply > 0 ? remainingPaymentToApply : numericAmount,
-        dueDate: date || new Date().toISOString().split('T')[0],
-        status: 'Paid',
-        paymentMethod: paymentMethod || 'Cash',
-        paidOn: date ? new Date(date) : new Date(),
-        upiScreenshot: upiScreenshot || null,
-        particulars: `Fee Collection Receipt - ${paymentMethod || 'Cash'}`
-      });
-      if (!invoiceUpdated) invoiceUpdated = newPaidInvoice;
-    }
-
-    // 2. Record payment entry in student document if found
+    // 3. Record payment entry in student document if found
     const studentDoc = await Student.findById(studentIdObj || studentIdStr).catch(() => null);
     if (studentDoc) {
       if (!studentDoc.payments) studentDoc.payments = [];
-      const existingPay = studentDoc.payments.find(p => p.invoiceId && String(p.invoiceId) === String(invoiceUpdated._id));
-      if (!existingPay) {
-        studentDoc.payments.push({
-          amount: numericAmount,
-          date: date || new Date().toISOString().split('T')[0],
-          paymentMethod: paymentMethod || 'Cash',
-          upiScreenshot: upiScreenshot || null,
-          invoiceId: invoiceUpdated._id
-        });
-        await studentDoc.save();
-      }
+      studentDoc.payments.push({
+        amount: numericAmount,
+        date: date || new Date().toISOString().split('T')[0],
+        paymentMethod: paymentMethod || 'Cash',
+        upiScreenshot: upiScreenshot || null,
+        invoiceId: paidInvoice._id
+      });
+      await studentDoc.save();
     }
 
-    // 3. Recalculate Student FeeLedger
+    // 4. Recalculate Student FeeLedger
     const paidInvoices = await Invoice.find({ studentId: queryIdFilter, status: 'Paid' });
-    const totalPaidInvoices = paidInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const paidInvoiceIds = new Set(paidInvoices.map(i => String(i._id)));
+    const totalPaidInvoices = paidInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
-    const manualPaymentsSum = (studentDoc?.payments || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-    const totalPaid = Math.max(totalPaidInvoices, manualPaymentsSum);
+    const manualPayments = (studentDoc?.payments || []).filter(p => !p.invoiceId || !paidInvoiceIds.has(String(p.invoiceId)));
+    const manualPaymentsSum = manualPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalPaid = totalPaidInvoices + manualPaymentsSum;
 
     let ledger = await FeeLedger.findOne({ studentId: queryIdFilter });
     if (!ledger) {
@@ -197,7 +171,7 @@ export const recordFeePayment = async (req, res) => {
 
     res.status(200).json({
       message: 'Fee payment recorded successfully in MongoDB Atlas',
-      invoice: invoiceUpdated,
+      invoice: paidInvoice,
       student: studentDoc,
       ledger,
       invoices: updatedInvoices
